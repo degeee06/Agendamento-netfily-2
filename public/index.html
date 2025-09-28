@@ -550,7 +550,7 @@ function init() {
             });
 
             feather.replace();
-            checkFreeLimit();
+
         }
 
         // ---------------- MODAL REAGENDAR ----------------
@@ -637,7 +637,7 @@ function init() {
                 document.getElementById('diasTabs').style.display = 'flex';
                 initTabsDias();
                 renderAgendamentos(); 
-                checkFreeLimit();
+               
             } catch(e){
                 console.error(e);
                 showToast("Erro ao listar agendamentos","error");
@@ -901,59 +901,7 @@ function init() {
             showToast("Exportado para PDF com sucesso", "success");
         });
 
-        const MAX_FREE = 3; // limite de agendamentos free
-
-        async function checkFreeLimit() {
-            const emailInput = document.getElementById('email');
-            const email = emailInput?.value?.trim();
-            let isVIP = false;
-
-            if (email) {
-                try {
-                    const res = await fetch(`/api/check-vip/${encodeURIComponent(email)}`);
-                    if (res.ok) {
-                        const data = await res.json();
-                        isVIP = data.vip === true;
-                    }
-                } catch (e) {
-                    console.error("Erro ao verificar VIP:", e);
-                }
-            }
-
-            const agendamentoForm = document.getElementById('agendamentoForm');
-            const submitBtn = agendamentoForm.querySelector('button[type="submit"]');
-            const botoes = document.querySelectorAll(".agendamento-card button");
-
-            if (!isVIP && agendamentosCache.length >= MAX_FREE) {
-                // 🔒 bloqueia agendar
-                submitBtn.disabled = true;
-                submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
-
-                // 🔒 bloqueia confirmar/cancelar/reagendar
-                botoes.forEach(b => {
-                    b.disabled = true;
-                    b.classList.add('opacity-50', 'cursor-not-allowed');
-                });
-
-                criarBotaoVIP();
-            } else {
-                // 🔓 libera agendar
-                submitBtn.disabled = false;
-                submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-
-                // 🔓 libera confirmar/cancelar/reagendar
-                botoes.forEach(b => {
-                    b.disabled = false;
-                    b.classList.remove('opacity-50', 'cursor-not-allowed');
-                });
-
-                // remove botão/qrCode se existir
-                const vipBtn = document.getElementById('upgradeVIP');
-                if (vipBtn) vipBtn.remove();
-                const pixDiv = document.getElementById('pixArea');
-                if (pixDiv) pixDiv.remove();
-            }
-        }
+      
 
         async function confirmarAgendamento(cliente, id) {
             if (!userToken) {
@@ -1056,112 +1004,7 @@ function init() {
             }
         }
 
-        function criarBotaoVIP() {
-    const agendamentoForm = document.getElementById('agendamentoForm');
-
-    // Remove botão antigo, se existir
-    const antigoBtn = document.getElementById('upgradeVIP');
-    if (antigoBtn) antigoBtn.remove();
-
-    // Cria botão VIP
-    const vipBtn = document.createElement('button');
-    vipBtn.id = 'upgradeVIP';
-    vipBtn.type = 'button';
-    vipBtn.innerText = 'Upgrade VIP';
-    vipBtn.className = 'w-full mt-4 bg-yellow-500 text-white py-3 rounded-lg font-medium hover:opacity-90 transition-all';
-
-    vipBtn.addEventListener('click', async () => {
-        // ⚡ ALTERAÇÃO AQUI: Use o email do login em vez do campo do formulário
-        const emailLogin = document.getElementById('email').value; // Email do login
-        const emailForm = document.getElementById('Email')?.value; // Email do formulário (se existir)
-        
-        const email = emailForm || emailLogin; // Prefere o email do formulário, senão usa o do login
-        
-        if (!email) {
-            showToast("Informe seu email para ser VIP", "warning");
-            return;
-        }
-
-        const emailNormalizado = email.trim();
-
-        try {
-            const res = await fetch("/api/create-pix", {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    amount: 0.01, // valor do teste
-                    description: "Assinatura VIP",
-                    email: emailNormalizado
-                })
-            });
-
-            if (!res.ok) {
-                const errData = await res.json().catch(() => ({}));
-                throw new Error(errData.error || 'Erro desconhecido ao criar pagamento');
-            }
-
-            const data = await res.json();
-            if (!data.qr_code_base64) {
-                throw new Error('Não foi possível gerar o QR Code PIX');
-            }
-
-            // Exibe QR Code
-            let pixDiv = document.getElementById("pixArea");
-            if (!pixDiv) {
-                pixDiv = document.createElement("div");
-                pixDiv.id = "pixArea";
-                pixDiv.className = 'mt-4 p-4 bg-white/10 rounded-lg';
-                agendamentoForm.appendChild(pixDiv);
-            }
-
-            pixDiv.innerHTML = `
-                <h3 class="mb-2">Escaneie o QR Code para pagar:</h3>
-                <img src="data:image/png;base64,${data.qr_code_base64}" class="mx-auto mb-2 w-48 h-48"/>
-                <p class="text-sm mb-1"><strong>Código copia e cola:</strong></p>
-                <textarea readonly class="w-full p-2 bg-white/5 rounded text-sm" style="height:80px">${data.qr_code}</textarea>
-            `;
-
-            showToast("QR Code gerado! Pague para ativar seu VIP", "success");
-
-            // 🔄 Função de polling para checar VIP
-            async function checkVipStatus(email, pixDiv, tentativas = 0, maxTentativas = 20) {
-                try {
-                    const res = await fetch(`/api/check-vip/${encodeURIComponent(email)}`);
-                    if (!res.ok) throw new Error("Erro ao checar VIP");
-
-                    const vipData = await res.json();
-                    if (vipData.vip) {
-                        showToast("Parabéns! Agora você é VIP 🎉", "success");
-                        pixDiv.remove();
-                        if (typeof listarAgendamentos === 'function') listarAgendamentos();
-                        if (typeof checkFreeLimit === 'function') checkFreeLimit();
-                        return;
-                    }
-
-                    if (tentativas < maxTentativas) {
-                        setTimeout(() => checkVipStatus(email, pixDiv, tentativas + 1, maxTentativas), 8000);
-                    } else {
-                        showToast("Ainda não recebemos o pagamento, tente novamente mais tarde.", "warning");
-                    }
-                } catch (err) {
-                    console.error("Erro ao checar VIP:", err);
-                    if (tentativas < maxTentativas) {
-                        setTimeout(() => checkVipStatus(email, pixDiv, tentativas + 1, maxTentativas), 8000);
-                    }
-                }
-            }
-
-            // Inicia a checagem de VIP
-            checkVipStatus(emailNormalizado, pixDiv);
-
-        } catch (err) {
-            console.error("Erro ao gerar Pix:", err);
-            showToast(`Erro ao gerar pagamento: ${err.message}`, "error");
-        }
-    });
-
-    agendamentoForm.appendChild(vipBtn);
-}
+       
         // ---------------- INIT ----------------
         AOS.init({
             duration: 800,
@@ -1172,4 +1015,5 @@ function init() {
         init();
     </script>
 </body>
+
 </html>
