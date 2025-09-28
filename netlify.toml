@@ -55,7 +55,12 @@
   to = "/.netlify/functions/supabase"
   status = 200
 
-
+# ✅ ADICIONAR:
+[[redirects]]
+  from = "/api/config/:cliente"
+  to = "/.netlify/functions/config-cliente/:cliente"
+  status = 200
+  
 [[redirects]]
   from = "/api/check-payment/:id"
   to = "/.netlify/functions/pagamentos/:id"
@@ -77,4 +82,5 @@
 [[redirects]]
   from = "/*"
   to = "/index.html"
+
   status = 200
