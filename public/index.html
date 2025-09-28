@@ -624,29 +624,32 @@ function init() {
         }
 
         // ---------------- LISTAR AGENDAMENTOS ----------------
-        async function listarAgendamentos(){
-            if(!userToken) return;
-            try{
-                const { data: agendamentos, error } = await supabase
-    .from("agendamentos")
-    .select("*")
-    .eq("cliente", cliente)
-    .neq("status", "cancelado")
-    .order("data", { ascending: true })
-    .order("horario", { ascending: true });
-                const { agendamentos } = await res.json();
-                agendamentosCache = agendamentos;
-                meusAgendamentos.style.display = 'block';
-                document.getElementById('filtersSection').style.display = 'block';
-                document.getElementById('diasTabs').style.display = 'flex';
-                initTabsDias();
-                renderAgendamentos(); 
-                checkFreeLimit();
-            } catch(e){
-                console.error(e);
-                showToast("Erro ao listar agendamentos","error");
-            }
-        }
+async function listarAgendamentos(){
+    if(!userToken) return;
+    try{
+        // ACESSO DIRETO AO SUPABASE (como no Render)
+        const { data: agendamentos, error } = await supabase
+            .from("agendamentos")
+            .select("*")
+            .eq("cliente", cliente)
+            .neq("status", "cancelado")
+            .order("data", { ascending: true })
+            .order("horario", { ascending: true });
+
+        if(error) throw error;
+        
+        agendamentosCache = agendamentos;
+        meusAgendamentos.style.display = 'block';
+        document.getElementById('filtersSection').style.display = 'block';
+        document.getElementById('diasTabs').style.display = 'flex';
+        initTabsDias();
+        renderAgendamentos(); 
+        
+    } catch(e){
+        console.error(e);
+        showToast("Erro ao listar agendamentos","error");
+    }
+}
 
         // ---------------- LOGIN ----------------
         loginBtn.addEventListener('click', async () => {
@@ -729,50 +732,68 @@ function init() {
         });
 
         // ---------------- AGENDAR ----------------
-        form.addEventListener('submit', async (e)=>{
-            e.preventDefault();
-            const formData=new FormData(form);
-            const dataToSend={};
-            formData.forEach((v,k)=>dataToSend[k]=v);
+form.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const formData = new FormData(form);
+    const dataToSend = {};
+    formData.forEach((v,k) => dataToSend[k] = v);
 
-            // Verifica campos obrigatórios
-            if(!dataToSend.Nome || !dataToSend.Email || !dataToSend.Telefone || !dataToSend.Data || !dataToSend.Horario) {
-                showToast("Preencha todos os campos", "warning");
-                return;
-            }
+    if(!dataToSend.Nome || !dataToSend.Email || !dataToSend.Telefone || !dataToSend.Data || !dataToSend.Horario) {
+        showToast("Preencha todos os campos", "warning");
+        return;
+    }
 
-   
+    // Mostrar loading
+    agendarText.classList.add('hidden');
+    agendarSpinner.classList.remove('hidden');
+    form.querySelector('button[type="submit"]').disabled = true;
 
-            // Mostrar loading
-            agendarText.classList.add('hidden');
-            agendarSpinner.classList.remove('hidden');
-            form.querySelector('button[type="submit"]').disabled = true;
-     
-            try{
-                const response=await fetch(`/api/agendar/${cliente}`,{
-                    method:'POST',
-                    headers:{'Content-Type':'application/json',"Authorization":`Bearer ${userToken}`},
-                    body:JSON.stringify(dataToSend)
-                });
-                
-                if(response.ok){ 
-                    showToast("Agendado com sucesso!","success"); 
-                    form.reset(); 
-                    listarAgendamentos(); 
-                } else {
-                    const errorData = await response.json();
-                    showToast(errorData.message || "Não foi possível agendar, horário ocupado!", "error");
-                }
-            } catch(err){ 
-                console.error(err); 
-                showToast("Erro ao enviar agendamento","error"); 
-            } finally {
-                // Esconder loading
-                agendarText.classList.remove('hidden');
-                agendarSpinner.classList.add('hidden');
-                form.querySelector('button[type="submit"]').disabled = false;
-            }
-        });
+    try{
+        // ACESSO DIRETO AO SUPABASE
+        const emailNormalizado = dataToSend.Email.toLowerCase().trim();
+        const dataNormalizada = new Date(dataToSend.Data).toISOString().split("T")[0];
+
+        // Limpeza de agendamentos cancelados
+        await supabase
+            .from("agendamentos")
+            .delete()
+            .eq("cliente", cliente)
+            .eq("data", dataNormalizada)
+            .eq("horario", dataToSend.Horario)
+            .eq("status", "cancelado");
+
+        // Inserção do agendamento
+        const { data: novoAgendamento, error } = await supabase
+            .from("agendamentos")
+            .insert([{
+                cliente,
+                nome: dataToSend.Nome,
+                email: emailNormalizado,
+                telefone: dataToSend.Telefone,
+                data: dataNormalizada,
+                horario: dataToSend.Horario,
+                status: "pendente",
+                confirmado: false,
+            }])
+            .select()
+            .single();
+
+        if(error) throw error;
+
+        showToast("Agendamento realizado com sucesso!","success");
+        form.reset(); 
+        listarAgendamentos();
+
+    } catch(err){ 
+        console.error(err); 
+        showToast("Erro ao enviar agendamento","error"); 
+    } finally {
+        // Esconder loading
+        agendarText.classList.remove('hidden');
+        agendarSpinner.classList.add('hidden');
+        form.querySelector('button[type="submit"]').disabled = false;
+    }
+});
 
         // ---------------- FILTROS ----------------
         searchInput.addEventListener("input", renderAgendamentos);
@@ -912,65 +933,51 @@ function init() {
             const botoes = document.querySelectorAll(".agendamento-card button");
 
           
-        async function confirmarAgendamento(cliente, id) {
-            if (!userToken) {
-                showToast("Faça login para confirmar um agendamento.", "warning");
-                return;
-            }
+      // ---------------- CONFIRMAR AGENDAMENTO ----------------
+async function confirmarAgendamento(cliente, id) {
+    try {
+        // ACESSO DIRETO AO SUPABASE
+        const { data, error } = await supabase
+            .from("agendamentos")
+            .update({ confirmado: true, status: "confirmado" })
+            .eq("id", id)
+            .eq("cliente", cliente)
+            .select()
+            .single();
 
-            try {
-                const res = await fetch(`/api/agendamentos/${cliente}/confirmar/${id}`, {
-                    method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${userToken}`,
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({ status: "confirmado", confirmado: true })
-                });
+        if(error) throw error;
 
-                const data = await res.json();
+        showToast("Agendamento confirmado com sucesso!", "success");
+        listarAgendamentos();
 
-                if (res.ok) {
-                    showToast("Agendamento confirmado com sucesso!", "success");
-                    listarAgendamentos();
-                } else {
-                    showToast("Erro ao confirmar: " + (data.msg || data.message), "error");
-                }
+    } catch (e) {
+        console.error(e);
+        showToast("Erro ao confirmar agendamento", "error");
+    }
+}
 
-            } catch (e) {
-                console.error(e);
-                showToast("Erro de conexão ao confirmar.", "error");
-            }
-        }
+       // ---------------- CANCELAR AGENDAMENTO ----------------
+async function cancelarAgendamento(cliente, id) {
+    try {
+        // ACESSO DIRETO AO SUPABASE
+        const { data, error } = await supabase
+            .from("agendamentos")
+            .update({ status: "cancelado", confirmado: false })
+            .eq("id", id)
+            .eq("cliente", cliente)
+            .select()
+            .single();
 
-        // ---------------- CANCELAR AGENDAMENTO ----------------
-        async function cancelarAgendamento(cliente, id) {
-            if (!userToken) {
-                showToast("Faça login para cancelar um agendamento.", "warning");
-                return;
-            }
+        if(error) throw error;
 
-            try {
-                const res = await fetch(`/api/agendamentos/${cliente}/cancelar/${id}`, {
-                    method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${userToken}`,
-                        "Content-Type": "application/json"
-                    }
-                });
+        showToast("Agendamento cancelado com sucesso!", "success");
+        listarAgendamentos();
 
-                const data = await res.json();
-                if (res.ok) {
-                    showToast("Agendamento cancelado com sucesso!", "success");
-                    listarAgendamentos();
-                } else {
-                    showToast("Erro ao cancelar: " + (data.msg || data.message), "error");
-                }
-            } catch (e) {
-                console.error(e);
-                showToast("Erro de conexão ao cancelar.", "error");
-            }
-        }
+    } catch (e) {
+        console.error(e);
+        showToast("Erro ao cancelar agendamento", "error");
+    }
+}
 
         async function reagendarAgendamento(cliente, id, novaData, novoHorario) {
             if (!userToken) {
@@ -1026,5 +1033,6 @@ function init() {
     </script>
 </body>
 </html>
+
 
 
