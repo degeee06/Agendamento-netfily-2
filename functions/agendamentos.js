@@ -1,19 +1,104 @@
-import { authMiddleware } from './auth.js';
-import { accessSpreadsheet, ensureDynamicHeaders, horarioDisponivel, updateRowInSheet, supabase } from './config.js';
+import { createClient } from "@supabase/supabase-js";
+import { GoogleSpreadsheet } from "google-spreadsheet";
 
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+let creds;
+try {
+  creds = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
+} catch (e) {
+  console.error("Erro ao parsear GOOGLE_SERVICE_ACCOUNT:", e);
+}
+
+// ---------------- Funções do Google Sheets (do server.js) ----------------
+async function accessSpreadsheet(clienteId) {
+  const { data, error } = await supabase
+    .from("clientes")
+    .select("spreadsheet_id")
+    .eq("id", clienteId)
+    .single();
+  if (error || !data) throw new Error(`Cliente ${clienteId} não encontrado`);
+
+  const doc = new GoogleSpreadsheet(data.spreadsheet_id);
+  await doc.useServiceAccountAuth(creds);
+  await doc.loadInfo();
+  return doc;
+}
+
+async function ensureDynamicHeaders(sheet, newKeys) {
+  await sheet.loadHeaderRow().catch(async () => await sheet.setHeaderRow(newKeys));
+  const currentHeaders = sheet.headerValues || [];
+  const headersToAdd = newKeys.filter((k) => !currentHeaders.includes(k));
+  if (headersToAdd.length > 0) {
+    await sheet.setHeaderRow([...currentHeaders, ...headersToAdd]);
+  }
+}
+
+async function updateRowInSheet(sheet, rowId, updatedData) {
+  await sheet.loadHeaderRow();
+  const rows = await sheet.getRows();
+  const row = rows.find(r => r.id === rowId);
+  if (row) {
+    Object.keys(updatedData).forEach(key => {
+      if (sheet.headerValues.includes(key)) row[key] = updatedData[key];
+    });
+    await row.save();
+  } else {
+    await ensureDynamicHeaders(sheet, Object.keys(updatedData));
+    await sheet.addRow(updatedData);
+  }
+}
+
+async function horarioDisponivel(cliente, data, horario, ignoreId = null) {
+  let query = supabase
+    .from("agendamentos")
+    .select("*")
+    .eq("cliente", cliente)
+    .eq("data", data)
+    .eq("horario", horario)
+    .neq("status", "cancelado");
+
+  if (ignoreId) query = query.neq("id", ignoreId);
+  const { data: agendamentos } = await query;
+  return agendamentos.length === 0;
+}
+
+// ---------------- Middleware Auth (do server.js) ----------------
+async function authMiddleware(event) {
+  const token = event.headers.authorization?.split("Bearer ")[1];
+  if (!token) {
+    return { error: { statusCode: 401, body: JSON.stringify({ msg: "Token não enviado" }) } };
+  }
+
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error || !data.user) {
+    return { error: { statusCode: 401, body: JSON.stringify({ msg: "Token inválido" }) } };
+  }
+
+  const clienteId = data.user.user_metadata.cliente_id;
+  if (!clienteId) {
+    return { error: { statusCode: 403, body: JSON.stringify({ msg: "Usuário sem cliente_id" }) } };
+  }
+
+  return { user: data.user, clienteId };
+}
+
+// ---------------- Handler Principal ----------------
 export async function handler(event) {
   try {
     const path = event.path;
     const httpMethod = event.httpMethod;
     const pathParams = event.pathParameters || {};
     
-    console.log('📦 Event received:', { path, httpMethod, pathParams });
+    console.log('📦 Recebido:', { path, httpMethod, pathParams });
 
-    // Rota: GET /api/agendamentos/:cliente
+    // ---------------- LISTAR AGENDAMENTOS ----------------
     if (path.includes('/agendamentos/') && httpMethod === 'GET') {
       const cliente = pathParams.cliente;
       
-      // Autenticação
       const auth = await authMiddleware(event);
       if (auth.error) return auth.error;
       
@@ -32,22 +117,18 @@ export async function handler(event) {
         .order("data", { ascending: true })
         .order("horario", { ascending: true });
 
-      if (error) {
-        console.error('❌ Supabase error:', error);
-        throw error;
-      }
-
+      if (error) throw error;
+      
       return { 
         statusCode: 200, 
         body: JSON.stringify({ agendamentos: data }) 
       };
     }
 
-    // Rota: POST /api/agendar/:cliente
+    // ---------------- AGENDAR ----------------
     if (path.includes('/agendar/') && httpMethod === 'POST') {
       const cliente = pathParams.cliente;
       
-      // Autenticação
       const auth = await authMiddleware(event);
       if (auth.error) return auth.error;
       
@@ -58,11 +139,8 @@ export async function handler(event) {
         };
       }
 
-      const body = JSON.parse(event.body);
-      const { Nome, Email, Telefone, Data, Horario } = body;
+      const { Nome, Email, Telefone, Data, Horario } = JSON.parse(event.body);
       
-      console.log('📝 Agendamento data:', body);
-
       if (!Nome || !Email || !Telefone || !Data || !Horario) {
         return { 
           statusCode: 400, 
@@ -98,10 +176,7 @@ export async function handler(event) {
         .select()
         .single();
 
-      if (error) {
-        console.error('❌ Erro ao inserir agendamento:', error);
-        throw error;
-      }
+      if (error) throw error;
 
       // Atualiza Google Sheet
       try {
@@ -111,7 +186,6 @@ export async function handler(event) {
         await sheet.addRow(novoAgendamento);
       } catch (sheetError) {
         console.error('⚠️ Erro ao atualizar Google Sheets:', sheetError);
-        // Não falha o agendamento por erro no sheet
       }
 
       return { 
@@ -123,11 +197,10 @@ export async function handler(event) {
       };
     }
 
-    // Rota: POST /api/agendamentos/:cliente/confirmar/:id
+    // ---------------- CONFIRMAR AGENDAMENTO ----------------
     if (path.includes('/confirmar/') && httpMethod === 'POST') {
       const { cliente, id } = pathParams;
       
-      // Autenticação
       const auth = await authMiddleware(event);
       if (auth.error) return auth.error;
       
@@ -162,11 +235,10 @@ export async function handler(event) {
       };
     }
 
-    // Rota: POST /api/agendamentos/:cliente/cancelar/:id
+    // ---------------- CANCELAR AGENDAMENTO ----------------
     if (path.includes('/cancelar/') && httpMethod === 'POST') {
       const { cliente, id } = pathParams;
       
-      // Autenticação
       const auth = await authMiddleware(event);
       if (auth.error) return auth.error;
       
@@ -201,7 +273,7 @@ export async function handler(event) {
       };
     }
 
-    // Rota: POST /api/agendamentos/:cliente/reagendar/:id
+    // ---------------- REAGENDAR ----------------
     if (path.includes('/reagendar/') && httpMethod === 'POST') {
       const { cliente, id } = pathParams;
       const { novaData, novoHorario } = JSON.parse(event.body);
@@ -213,7 +285,6 @@ export async function handler(event) {
         };
       }
 
-      // Autenticação
       const auth = await authMiddleware(event);
       if (auth.error) return auth.error;
       
