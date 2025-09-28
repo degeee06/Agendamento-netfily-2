@@ -1,53 +1,44 @@
 import { createClient } from "@supabase/supabase-js";
 import { GoogleSpreadsheet } from "google-spreadsheet";
-
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 let creds = null;
-if (process.env.GOOGLE_SERVICE_ACCOUNT) {
-  try {
-    creds = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
-  } catch (e) {
-    console.error("❌ Erro ao parsear GOOGLE_SERVICE_ACCOUNT:", e);
-  }
-}
 
+try {
+  if (process.env.GOOGLE_SERVICE_ACCOUNT) {
+    // Remove escapes e corrige quebras de linha
+    const credsJson = process.env.GOOGLE_SERVICE_ACCOUNT
+      .replace(/\\n/g, '\n')  // Corrige \\n para \n
+      .replace(/\\\\/g, '\\'); // Corrige escapes duplos
+    
+    creds = JSON.parse(credsJson);
+    console.log('✅ Google Sheets creds carregadas com sucesso');
+  }
+} catch (e) {
+  console.error("❌ Erro ao parsear GOOGLE_SERVICE_ACCOUNT:", e);
+  console.log('🔍 JSON problemático:', process.env.GOOGLE_SERVICE_ACCOUNT?.substring(0, 200));
+}
 // ---------------- Funções do Google Sheets CORRIGIDAS ----------------
 async function accessSpreadsheet(clienteId) {
-  if (!creds) {
-    throw new Error("Google Sheets não configurado");
-  }
-  
   const { data, error } = await supabase
     .from("clientes")
     .select("spreadsheet_id")
     .eq("id", clienteId)
     .single();
-    
   if (error || !data) throw new Error(`Cliente ${clienteId} não encontrado`);
 
   const doc = new GoogleSpreadsheet(data.spreadsheet_id);
-  
-  // ✅ CORREÇÃO: Nova forma de autenticação do Google Sheets
-  await doc.useServiceAccountAuth({
-    client_email: creds.client_email,
-    private_key: creds.private_key,
-  });
-  
+  await doc.useServiceAccountAuth(creds); // ✅ Mantém igual
   await doc.loadInfo();
   return doc;
 }
 
+
 async function ensureDynamicHeaders(sheet, newKeys) {
-  try {
-    await sheet.loadHeaderRow();
-  } catch (e) {
-    await sheet.setHeaderRow(newKeys);
-  }
-  
+  await sheet.loadHeaderRow().catch(async () => await sheet.setHeaderRow(newKeys));
   const currentHeaders = sheet.headerValues || [];
   const headersToAdd = newKeys.filter((k) => !currentHeaders.includes(k));
   if (headersToAdd.length > 0) {
@@ -56,22 +47,17 @@ async function ensureDynamicHeaders(sheet, newKeys) {
 }
 
 async function updateRowInSheet(sheet, rowId, updatedData) {
-  try {
-    await sheet.loadHeaderRow();
-    const rows = await sheet.getRows();
-    const row = rows.find(r => r.id === rowId);
-    
-    if (row) {
-      Object.keys(updatedData).forEach(key => {
-        if (sheet.headerValues.includes(key)) row[key] = updatedData[key];
-      });
-      await row.save();
-    } else {
-      await ensureDynamicHeaders(sheet, Object.keys(updatedData));
-      await sheet.addRow(updatedData);
-    }
-  } catch (error) {
-    console.error("❌ Erro ao atualizar Google Sheets:", error);
+  await sheet.loadHeaderRow();
+  const rows = await sheet.getRows();
+  const row = rows.find(r => r.id === rowId);
+  if (row) {
+    Object.keys(updatedData).forEach(key => {
+      if (sheet.headerValues.includes(key)) row[key] = updatedData[key];
+    });
+    await row.save();
+  } else {
+    await ensureDynamicHeaders(sheet, Object.keys(updatedData));
+    await sheet.addRow(updatedData);
   }
 }
 
@@ -397,3 +383,4 @@ export async function handler(event) {
     };
   }
 }
+
