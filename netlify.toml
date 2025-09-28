@@ -8,7 +8,7 @@
 [functions]
   node_bundler = "esbuild"
 
-# Redirects para as functions
+# Redirects (igual ao seu server.js original)
 [[redirects]]
   from = "/api/agendamentos/:cliente"
   to = "/.netlify/functions/agendamentos/:cliente"
@@ -32,16 +32,6 @@
 [[redirects]]
   from = "/api/agendamentos/:cliente/reagendar/:id"
   to = "/.netlify/functions/agendamentos/:cliente/reagendar/:id"
-  status = 200
-
-[[redirects]]
-  from = "/api/check-vip/:email"
-  to = "/.netlify/functions/pagamentos/:email"
-  status = 200
-
-[[redirects]]
-  from = "/api/create-pix"
-  to = "/.netlify/functions/pagamentos"
   status = 200
 
 # Serve o frontend
