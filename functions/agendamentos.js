@@ -5,21 +5,17 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// ✅ VERSÃO SIMPLES (após corrigir a variável de ambiente)
 let creds = null;
 
 try {
   if (process.env.GOOGLE_SERVICE_ACCOUNT) {
-    // Remove escapes e corrige quebras de linha
-    const credsJson = process.env.GOOGLE_SERVICE_ACCOUNT
-      .replace(/\\n/g, '\n')  // Corrige \\n para \n
-      .replace(/\\\\/g, '\\'); // Corrige escapes duplos
-    
-    creds = JSON.parse(credsJson);
-    console.log('✅ Google Sheets creds carregadas com sucesso');
+    creds = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
+    console.log('✅ Google Sheets creds carregadas');
   }
 } catch (e) {
   console.error("❌ Erro ao parsear GOOGLE_SERVICE_ACCOUNT:", e);
-  console.log('🔍 JSON problemático:', process.env.GOOGLE_SERVICE_ACCOUNT?.substring(0, 200));
+  creds = null;
 }
 // ---------------- Funções do Google Sheets CORRIGIDAS ----------------
 async function accessSpreadsheet(clienteId) {
@@ -383,4 +379,5 @@ export async function handler(event) {
     };
   }
 }
+
 
