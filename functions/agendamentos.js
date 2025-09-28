@@ -1,20 +1,17 @@
 import { createClient } from "@supabase/supabase-js";
 import { GoogleSpreadsheet } from "google-spreadsheet";
 
-// ✅ Configuração segura do Supabase
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// ✅ Configuração segura do Google Sheets
 let creds = null;
 if (process.env.GOOGLE_SERVICE_ACCOUNT) {
   try {
     creds = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
   } catch (e) {
     console.error("❌ Erro ao parsear GOOGLE_SERVICE_ACCOUNT:", e);
-    // Continua sem Google Sheets, mas não quebra a aplicação
   }
 }
 
@@ -100,11 +97,9 @@ async function authMiddleware(event) {
       return { error: { statusCode: 401, body: JSON.stringify({ msg: "Token inválido" }) } };
     }
 
-    // ✅ Busca o cliente_id de forma mais confiável
     let clienteId = data.user.user_metadata?.cliente_id;
     
     if (!clienteId) {
-      // ✅ Tenta buscar da tabela de usuários
       const { data: userData, error: userError } = await supabase
         .from("users")
         .select("cliente_id")
@@ -117,8 +112,7 @@ async function authMiddleware(event) {
     }
 
     if (!clienteId) {
-      // ✅ Fallback seguro
-      clienteId = "cliente1"; // Valor padrão
+      clienteId = "cliente1";
     }
 
     return { user: data.user, clienteId };
@@ -129,7 +123,6 @@ async function authMiddleware(event) {
   }
 }
 
-// ---------------- Handler Principal CORRIGIDO ----------------
 export async function handler(event) {
   console.log('🚀 Function iniciada para:', event.path);
   
@@ -140,50 +133,41 @@ export async function handler(event) {
     
     console.log('📦 Parâmetros:', { path, httpMethod, pathParams });
 
-    // ✅ CORREÇÃO: Extrai cliente da URL corretamente
+    // ✅ CORREÇÃO: Extrai cliente da URL corretamente para TODAS as rotas
     let cliente = pathParams.cliente;
-    
-    // ✅ Fallback se cliente for undefined
-    if (!cliente && path.includes('/agendamentos/')) {
+
+    // ✅ Fallback se cliente for undefined - funciona para todas as rotas
+    if (!cliente) {
       const pathParts = path.split('/');
-      cliente = pathParts[pathParts.length - 1]; // Pega último elemento
+      for (let i = pathParts.length - 1; i >= 0; i--) {
+        if (pathParts[i] && pathParts[i] !== 'api' && pathParts[i] !== 'agendamentos' && pathParts[i] !== 'agendar') {
+          cliente = pathParts[i];
+          break;
+        }
+      }
     }
-    
+
     console.log('👤 Cliente extraído:', cliente);
 
+    if (!cliente) {
+      return { 
+        statusCode: 400, 
+        body: JSON.stringify({ msg: "Cliente não especificado na URL" }) 
+      };
+    }
+
     // ---------------- LISTAR AGENDAMENTOS ----------------
-    if (path.includes('/agendamentos/') && httpMethod === 'GET') {
-      if (!cliente) {
-        return { 
-          statusCode: 400, 
-          body: JSON.stringify({ msg: "Cliente não especificado" }) 
-        };
-      }
-      
+    if (path.includes('/agendamentos/') && httpMethod === 'GET') {      
       const auth = await authMiddleware(event);
-      if (auth.error) {
-        console.log('❌ Erro de autenticação:', auth.error);
-        return auth.error;
-      }
+      if (auth.error) return auth.error;
       
-      console.log('✅ Usuário autenticado:', auth.user.email);
-      console.log('🔑 Cliente do token:', auth.clienteId);
-      
-      // ✅ CORREÇÃO: Verificação segura sem toString()
       if (auth.clienteId !== cliente && auth.clienteId !== "admin") {
-        console.log('⚠️ Acesso negado - cliente mismatch');
         return { 
           statusCode: 403, 
-          body: JSON.stringify({ 
-            msg: "Acesso negado",
-            userCliente: auth.clienteId,
-            requestedCliente: cliente
-          }) 
+          body: JSON.stringify({ msg: "Acesso negado" }) 
         };
       }
 
-      // ✅ Busca os agendamentos
-      console.log('🔍 Buscando agendamentos para:', cliente);
       const { data: agendamentos, error } = await supabase
         .from("agendamentos")
         .select("*")
@@ -192,12 +176,7 @@ export async function handler(event) {
         .order("data", { ascending: true })
         .order("horario", { ascending: true });
 
-      if (error) {
-        console.error('❌ Erro ao buscar agendamentos:', error);
-        throw error;
-      }
-
-      console.log('📊 Agendamentos encontrados:', agendamentos.length);
+      if (error) throw error;
       
       return { 
         statusCode: 200, 
@@ -207,13 +186,10 @@ export async function handler(event) {
 
     // ---------------- AGENDAR ----------------
     if (path.includes('/agendar/') && httpMethod === 'POST') {
-      const cliente = pathParams.cliente;
-      
       const auth = await authMiddleware(event);
       if (auth.error) return auth.error;
       
-      // ✅ CORREÇÃO: Verificação mais flexível
-      if (auth.clienteId.toString() !== cliente.toString()) {
+      if (auth.clienteId !== cliente && auth.clienteId !== "admin") {
         return { 
           statusCode: 403, 
           body: JSON.stringify({ msg: "Acesso negado" }) 
@@ -259,12 +235,14 @@ export async function handler(event) {
 
       if (error) throw error;
 
-      // Atualiza Google Sheet
+      // Atualiza Google Sheet (opcional)
       try {
-        const doc = await accessSpreadsheet(cliente);
-        const sheet = doc.sheetsByIndex[0];
-        await ensureDynamicHeaders(sheet, Object.keys(novoAgendamento));
-        await sheet.addRow(novoAgendamento);
+        if (creds) {
+          const doc = await accessSpreadsheet(cliente);
+          const sheet = doc.sheetsByIndex[0];
+          await ensureDynamicHeaders(sheet, Object.keys(novoAgendamento));
+          await sheet.addRow(novoAgendamento);
+        }
       } catch (sheetError) {
         console.error('⚠️ Erro ao atualizar Google Sheets:', sheetError);
       }
@@ -425,3 +403,4 @@ export async function handler(event) {
     };
   }
 }
+
