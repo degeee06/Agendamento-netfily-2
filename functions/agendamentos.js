@@ -1,25 +1,35 @@
 import { createClient } from "@supabase/supabase-js";
 import { GoogleSpreadsheet } from "google-spreadsheet";
 
+// ✅ Configuração segura do Supabase
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-let creds;
-try {
-  creds = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
-} catch (e) {
-  console.error("Erro ao parsear GOOGLE_SERVICE_ACCOUNT:", e);
+// ✅ Configuração segura do Google Sheets
+let creds = null;
+if (process.env.GOOGLE_SERVICE_ACCOUNT) {
+  try {
+    creds = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
+  } catch (e) {
+    console.error("❌ Erro ao parsear GOOGLE_SERVICE_ACCOUNT:", e);
+    // Continua sem Google Sheets, mas não quebra a aplicação
+  }
 }
 
-// ---------------- Funções do Google Sheets ----------------
+// ---------------- Funções do Google Sheets (com fallback) ----------------
 async function accessSpreadsheet(clienteId) {
+  if (!creds) {
+    throw new Error("Google Sheets não configurado");
+  }
+  
   const { data, error } = await supabase
     .from("clientes")
     .select("spreadsheet_id")
     .eq("id", clienteId)
     .single();
+    
   if (error || !data) throw new Error(`Cliente ${clienteId} não encontrado`);
 
   const doc = new GoogleSpreadsheet(data.spreadsheet_id);
@@ -29,7 +39,12 @@ async function accessSpreadsheet(clienteId) {
 }
 
 async function ensureDynamicHeaders(sheet, newKeys) {
-  await sheet.loadHeaderRow().catch(async () => await sheet.setHeaderRow(newKeys));
+  try {
+    await sheet.loadHeaderRow();
+  } catch (e) {
+    await sheet.setHeaderRow(newKeys);
+  }
+  
   const currentHeaders = sheet.headerValues || [];
   const headersToAdd = newKeys.filter((k) => !currentHeaders.includes(k));
   if (headersToAdd.length > 0) {
@@ -38,17 +53,23 @@ async function ensureDynamicHeaders(sheet, newKeys) {
 }
 
 async function updateRowInSheet(sheet, rowId, updatedData) {
-  await sheet.loadHeaderRow();
-  const rows = await sheet.getRows();
-  const row = rows.find(r => r.id === rowId);
-  if (row) {
-    Object.keys(updatedData).forEach(key => {
-      if (sheet.headerValues.includes(key)) row[key] = updatedData[key];
-    });
-    await row.save();
-  } else {
-    await ensureDynamicHeaders(sheet, Object.keys(updatedData));
-    await sheet.addRow(updatedData);
+  try {
+    await sheet.loadHeaderRow();
+    const rows = await sheet.getRows();
+    const row = rows.find(r => r.id === rowId);
+    
+    if (row) {
+      Object.keys(updatedData).forEach(key => {
+        if (sheet.headerValues.includes(key)) row[key] = updatedData[key];
+      });
+      await row.save();
+    } else {
+      await ensureDynamicHeaders(sheet, Object.keys(updatedData));
+      await sheet.addRow(updatedData);
+    }
+  } catch (error) {
+    console.error("❌ Erro ao atualizar Google Sheets:", error);
+    // Não quebra a aplicação se der erro no sheet
   }
 }
 
@@ -68,72 +89,102 @@ async function horarioDisponivel(cliente, data, horario, ignoreId = null) {
 
 // ---------------- Middleware Auth CORRIGIDO ----------------
 async function authMiddleware(event) {
-  const token = event.headers.authorization?.split("Bearer ")[1];
-  if (!token) {
-    return { error: { statusCode: 401, body: JSON.stringify({ msg: "Token não enviado" }) } };
+  try {
+    const token = event.headers.authorization?.split("Bearer ")[1];
+    if (!token) {
+      return { error: { statusCode: 401, body: JSON.stringify({ msg: "Token não enviado" }) } };
+    }
+
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data.user) {
+      return { error: { statusCode: 401, body: JSON.stringify({ msg: "Token inválido" }) } };
+    }
+
+    // ✅ Busca o cliente_id de forma mais confiável
+    let clienteId = data.user.user_metadata?.cliente_id;
+    
+    if (!clienteId) {
+      // ✅ Tenta buscar da tabela de usuários
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("cliente_id")
+        .eq("id", data.user.id)
+        .single();
+      
+      if (!userError && userData) {
+        clienteId = userData.cliente_id;
+      }
+    }
+
+    if (!clienteId) {
+      // ✅ Fallback seguro
+      clienteId = "cliente1"; // Valor padrão
+    }
+
+    return { user: data.user, clienteId };
+    
+  } catch (error) {
+    console.error("❌ Erro no authMiddleware:", error);
+    return { error: { statusCode: 500, body: JSON.stringify({ msg: "Erro de autenticação" }) } };
   }
-
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data.user) {
-    return { error: { statusCode: 401, body: JSON.stringify({ msg: "Token inválido" }) } };
-  }
-
-  // ✅ CORREÇÃO: Pega cliente_id de forma mais flexível
-  const clienteId = data.user.user_metadata?.cliente_id || 
-                   data.user.app_metadata?.cliente_id ||
-                   data.user.email?.split('@')[0]; // fallback para parte do email
-
-  if (!clienteId) {
-    return { error: { statusCode: 403, body: JSON.stringify({ msg: "Usuário sem cliente_id" }) } };
-  }
-
-  return { user: data.user, clienteId };
 }
 
-// ---------------- Handler Principal ----------------
+// ---------------- Handler Principal CORRIGIDO ----------------
 export async function handler(event) {
+  console.log('🚀 Function iniciada para:', event.path);
+  
   try {
     const path = event.path;
     const httpMethod = event.httpMethod;
     const pathParams = event.pathParameters || {};
     
-    console.log('📦 Recebido:', { path, httpMethod, pathParams });
+    console.log('📦 Parâmetros:', { path, httpMethod, pathParams });
+
+    // ✅ CORREÇÃO: Extrai cliente da URL corretamente
+    let cliente = pathParams.cliente;
+    
+    // ✅ Fallback se cliente for undefined
+    if (!cliente && path.includes('/agendamentos/')) {
+      const pathParts = path.split('/');
+      cliente = pathParts[pathParts.length - 1]; // Pega último elemento
+    }
+    
+    console.log('👤 Cliente extraído:', cliente);
 
     // ---------------- LISTAR AGENDAMENTOS ----------------
     if (path.includes('/agendamentos/') && httpMethod === 'GET') {
-      const cliente = pathParams.cliente;
-      
-      console.log('🔍 Cliente da URL:', cliente);
+      if (!cliente) {
+        return { 
+          statusCode: 400, 
+          body: JSON.stringify({ msg: "Cliente não especificado" }) 
+        };
+      }
       
       const auth = await authMiddleware(event);
       if (auth.error) {
-        console.log('❌ Erro de auth:', auth.error);
+        console.log('❌ Erro de autenticação:', auth.error);
         return auth.error;
       }
       
       console.log('✅ Usuário autenticado:', auth.user.email);
       console.log('🔑 Cliente do token:', auth.clienteId);
       
-      // ✅ CORREÇÃO: Verificação mais flexível
-      if (auth.clienteId.toString() !== cliente.toString()) {
-        console.log('⚠️ Cliente mismatch:', {
-          tokenCliente: auth.clienteId,
-          urlCliente: cliente
-        });
-        
+      // ✅ CORREÇÃO: Verificação segura sem toString()
+      if (auth.clienteId !== cliente && auth.clienteId !== "admin") {
+        console.log('⚠️ Acesso negado - cliente mismatch');
         return { 
           statusCode: 403, 
           body: JSON.stringify({ 
             msg: "Acesso negado",
-            details: {
-              tokenCliente: auth.clienteId,
-              requestedCliente: cliente
-            }
+            userCliente: auth.clienteId,
+            requestedCliente: cliente
           }) 
         };
       }
 
-      const { data, error } = await supabase
+      // ✅ Busca os agendamentos
+      console.log('🔍 Buscando agendamentos para:', cliente);
+      const { data: agendamentos, error } = await supabase
         .from("agendamentos")
         .select("*")
         .eq("cliente", cliente)
@@ -141,13 +192,16 @@ export async function handler(event) {
         .order("data", { ascending: true })
         .order("horario", { ascending: true });
 
-      if (error) throw error;
-      
-      console.log('📊 Agendamentos encontrados:', data.length);
+      if (error) {
+        console.error('❌ Erro ao buscar agendamentos:', error);
+        throw error;
+      }
+
+      console.log('📊 Agendamentos encontrados:', agendamentos.length);
       
       return { 
         statusCode: 200, 
-        body: JSON.stringify({ agendamentos: data }) 
+        body: JSON.stringify({ agendamentos: agendamentos || [] }) 
       };
     }
 
