@@ -1,0 +1,80 @@
+[build]
+  publish = "public"
+  functions = "functions"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[functions]
+  node_bundler = "esbuild"
+
+
+# Redirects para as functions específicas
+[[redirects]]
+  from = "/api/auth"
+  to = "/.netlify/functions/auth"
+  status = 200
+
+[[redirects]]
+  from = "/api/agendamentos/:cliente"
+  to = "/.netlify/functions/agendamentos/:cliente"
+  status = 200
+
+[[redirects]]
+  from = "/api/agendar/:cliente"
+  to = "/.netlify/functions/agendamentos/:cliente"
+  status = 200
+
+[[redirects]]
+  from = "/api/agendamentos/:cliente/confirmar/:id"
+  to = "/.netlify/functions/agendamentos/:cliente/confirmar/:id"
+  status = 200
+
+[[redirects]]
+  from = "/api/agendamentos/:cliente/cancelar/:id"
+  to = "/.netlify/functions/agendamentos/:cliente/cancelar/:id"
+  status = 200
+
+[[redirects]]
+  from = "/api/agendamentos/:cliente/reagendar/:id"
+  to = "/.netlify/functions/agendamentos/:cliente/reagendar/:id"
+  status = 200
+
+[[redirects]]
+  from = "/api/cleanup"
+  to = "/.netlify/functions/cleanup"
+  status = 200
+
+[[redirects]]
+  from = "/api/google-sheets"
+  to = "/.netlify/functions/google-sheets"
+  status = 200
+
+[[redirects]]
+  from = "/api/supabase"
+  to = "/.netlify/functions/supabase"
+  status = 200
+
+
+[[redirects]]
+  from = "/api/check-payment/:id"
+  to = "/.netlify/functions/pagamentos/:id"
+  status = 200
+
+# Redirect genérico para outras APIs
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+# Redirect para páginas de cliente
+[[redirects]]
+  from = "/cliente/:cliente"
+  to = "/cliente/:cliente.html"
+  status = 200
+
+# Serve o frontend para todas as outras rotas
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

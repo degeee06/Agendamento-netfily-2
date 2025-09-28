@@ -1,0 +1,17 @@
+{
+  "name": "meu-agendamento-netlify",
+  "type": "module",
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "echo 'No build step needed'",
+    "deploy": "netlify deploy --prod"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.38.0",
+    "google-spreadsheet": "^4.1.1",
+    "mercadopago": "^2.8.0"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
+  }
+}
