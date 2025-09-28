@@ -8,8 +8,7 @@
 [functions]
   node_bundler = "esbuild"
 
-
-# Redirects específicos para seu frontend
+# Redirects para as functions
 [[redirects]]
   from = "/api/agendamentos/:cliente"
   to = "/.netlify/functions/agendamentos/:cliente"
@@ -35,13 +34,17 @@
   to = "/.netlify/functions/agendamentos/:cliente/reagendar/:id"
   status = 200
 
-# Redirect genérico
 [[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
+  from = "/api/check-vip/:email"
+  to = "/.netlify/functions/pagamentos/:email"
   status = 200
 
-# Serve o frontend para todas as outras rotas
+[[redirects]]
+  from = "/api/create-pix"
+  to = "/.netlify/functions/pagamentos"
+  status = 200
+
+# Serve o frontend
 [[redirects]]
   from = "/*"
   to = "/index.html"
