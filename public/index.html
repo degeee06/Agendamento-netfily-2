@@ -624,32 +624,25 @@ function init() {
         }
 
         // ---------------- LISTAR AGENDAMENTOS ----------------
-async function listarAgendamentos(){
-    if(!userToken) return;
-    try{
-        // ACESSO DIRETO AO SUPABASE (como no Render)
-        const { data: agendamentos, error } = await supabase
-            .from("agendamentos")
-            .select("*")
-            .eq("cliente", cliente)
-            .neq("status", "cancelado")
-            .order("data", { ascending: true })
-            .order("horario", { ascending: true });
-
-        if(error) throw error;
-        
-        agendamentosCache = agendamentos;
-        meusAgendamentos.style.display = 'block';
-        document.getElementById('filtersSection').style.display = 'block';
-        document.getElementById('diasTabs').style.display = 'flex';
-        initTabsDias();
-        renderAgendamentos(); 
-        
-    } catch(e){
-        console.error(e);
-        showToast("Erro ao listar agendamentos","error");
-    }
-}
+        async function listarAgendamentos(){
+            if(!userToken) return;
+            try{
+                const res = await fetch(`/agendamentos/${cliente}`, {
+                    headers: { "Authorization": `Bearer ${userToken}` }
+                });
+                const { agendamentos } = await res.json();
+                agendamentosCache = agendamentos;
+                meusAgendamentos.style.display = 'block';
+                document.getElementById('filtersSection').style.display = 'block';
+                document.getElementById('diasTabs').style.display = 'flex';
+                initTabsDias();
+                renderAgendamentos(); 
+                checkFreeLimit();
+            } catch(e){
+                console.error(e);
+                showToast("Erro ao listar agendamentos","error");
+            }
+        }
 
         // ---------------- LOGIN ----------------
         loginBtn.addEventListener('click', async () => {
@@ -732,68 +725,50 @@ async function listarAgendamentos(){
         });
 
         // ---------------- AGENDAR ----------------
-form.addEventListener('submit', async (e)=>{
-    e.preventDefault();
-    const formData = new FormData(form);
-    const dataToSend = {};
-    formData.forEach((v,k) => dataToSend[k] = v);
+        form.addEventListener('submit', async (e)=>{
+            e.preventDefault();
+            const formData=new FormData(form);
+            const dataToSend={};
+            formData.forEach((v,k)=>dataToSend[k]=v);
 
-    if(!dataToSend.Nome || !dataToSend.Email || !dataToSend.Telefone || !dataToSend.Data || !dataToSend.Horario) {
-        showToast("Preencha todos os campos", "warning");
-        return;
-    }
+            // Verifica campos obrigatórios
+            if(!dataToSend.Nome || !dataToSend.Email || !dataToSend.Telefone || !dataToSend.Data || !dataToSend.Horario) {
+                showToast("Preencha todos os campos", "warning");
+                return;
+            }
 
-    // Mostrar loading
-    agendarText.classList.add('hidden');
-    agendarSpinner.classList.remove('hidden');
-    form.querySelector('button[type="submit"]').disabled = true;
+   
 
-    try{
-        // ACESSO DIRETO AO SUPABASE
-        const emailNormalizado = dataToSend.Email.toLowerCase().trim();
-        const dataNormalizada = new Date(dataToSend.Data).toISOString().split("T")[0];
-
-        // Limpeza de agendamentos cancelados
-        await supabase
-            .from("agendamentos")
-            .delete()
-            .eq("cliente", cliente)
-            .eq("data", dataNormalizada)
-            .eq("horario", dataToSend.Horario)
-            .eq("status", "cancelado");
-
-        // Inserção do agendamento
-        const { data: novoAgendamento, error } = await supabase
-            .from("agendamentos")
-            .insert([{
-                cliente,
-                nome: dataToSend.Nome,
-                email: emailNormalizado,
-                telefone: dataToSend.Telefone,
-                data: dataNormalizada,
-                horario: dataToSend.Horario,
-                status: "pendente",
-                confirmado: false,
-            }])
-            .select()
-            .single();
-
-        if(error) throw error;
-
-        showToast("Agendamento realizado com sucesso!","success");
-        form.reset(); 
-        listarAgendamentos();
-
-    } catch(err){ 
-        console.error(err); 
-        showToast("Erro ao enviar agendamento","error"); 
-    } finally {
-        // Esconder loading
-        agendarText.classList.remove('hidden');
-        agendarSpinner.classList.add('hidden');
-        form.querySelector('button[type="submit"]').disabled = false;
-    }
-});
+            // Mostrar loading
+            agendarText.classList.add('hidden');
+            agendarSpinner.classList.remove('hidden');
+            form.querySelector('button[type="submit"]').disabled = true;
+     
+            try{
+                const response=await fetch(`/agendar/${cliente}`,{
+                    method:'POST',
+                    headers:{'Content-Type':'application/json',"Authorization":`Bearer ${userToken}`},
+                    body:JSON.stringify(dataToSend)
+                });
+                
+                if(response.ok){ 
+                    showToast("Agendado com sucesso!","success"); 
+                    form.reset(); 
+                    listarAgendamentos(); 
+                } else {
+                    const errorData = await response.json();
+                    showToast(errorData.message || "Não foi possível agendar, horário ocupado!", "error");
+                }
+            } catch(err){ 
+                console.error(err); 
+                showToast("Erro ao enviar agendamento","error"); 
+            } finally {
+                // Esconder loading
+                agendarText.classList.remove('hidden');
+                agendarSpinner.classList.add('hidden');
+                form.querySelector('button[type="submit"]').disabled = false;
+            }
+        });
 
         // ---------------- FILTROS ----------------
         searchInput.addEventListener("input", renderAgendamentos);
@@ -926,58 +901,119 @@ form.addEventListener('submit', async (e)=>{
             showToast("Exportado para PDF com sucesso", "success");
         });
 
-       
+        const MAX_FREE = 3; // limite de agendamentos free
+
+        async function checkFreeLimit() {
+            const emailInput = document.getElementById('email');
+            const email = emailInput?.value?.trim();
+            let isVIP = false;
+
+            if (email) {
+                try {
+                    const res = await fetch(`/check-vip/${encodeURIComponent(email)}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        isVIP = data.vip === true;
+                    }
+                } catch (e) {
+                    console.error("Erro ao verificar VIP:", e);
+                }
+            }
 
             const agendamentoForm = document.getElementById('agendamentoForm');
             const submitBtn = agendamentoForm.querySelector('button[type="submit"]');
             const botoes = document.querySelectorAll(".agendamento-card button");
 
-          
-      // ---------------- CONFIRMAR AGENDAMENTO ----------------
-async function confirmarAgendamento(cliente, id) {
-    try {
-        // ACESSO DIRETO AO SUPABASE
-        const { data, error } = await supabase
-            .from("agendamentos")
-            .update({ confirmado: true, status: "confirmado" })
-            .eq("id", id)
-            .eq("cliente", cliente)
-            .select()
-            .single();
+            if (!isVIP && agendamentosCache.length >= MAX_FREE) {
+                // 🔒 bloqueia agendar
+                submitBtn.disabled = true;
+                submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
 
-        if(error) throw error;
+                // 🔒 bloqueia confirmar/cancelar/reagendar
+                botoes.forEach(b => {
+                    b.disabled = true;
+                    b.classList.add('opacity-50', 'cursor-not-allowed');
+                });
 
-        showToast("Agendamento confirmado com sucesso!", "success");
-        listarAgendamentos();
+                criarBotaoVIP();
+            } else {
+                // 🔓 libera agendar
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
 
-    } catch (e) {
-        console.error(e);
-        showToast("Erro ao confirmar agendamento", "error");
-    }
-}
+                // 🔓 libera confirmar/cancelar/reagendar
+                botoes.forEach(b => {
+                    b.disabled = false;
+                    b.classList.remove('opacity-50', 'cursor-not-allowed');
+                });
 
-       // ---------------- CANCELAR AGENDAMENTO ----------------
-async function cancelarAgendamento(cliente, id) {
-    try {
-        // ACESSO DIRETO AO SUPABASE
-        const { data, error } = await supabase
-            .from("agendamentos")
-            .update({ status: "cancelado", confirmado: false })
-            .eq("id", id)
-            .eq("cliente", cliente)
-            .select()
-            .single();
+                // remove botão/qrCode se existir
+                const vipBtn = document.getElementById('upgradeVIP');
+                if (vipBtn) vipBtn.remove();
+                const pixDiv = document.getElementById('pixArea');
+                if (pixDiv) pixDiv.remove();
+            }
+        }
 
-        if(error) throw error;
+        async function confirmarAgendamento(cliente, id) {
+            if (!userToken) {
+                showToast("Faça login para confirmar um agendamento.", "warning");
+                return;
+            }
 
-        showToast("Agendamento cancelado com sucesso!", "success");
-        listarAgendamentos();
+            try {
+                const res = await fetch(`/agendamentos/${cliente}/confirmar/${id}`, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${userToken}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ status: "confirmado", confirmado: true })
+                });
 
-    } catch (e) {
-        console.error(e);
-        showToast("Erro ao cancelar agendamento", "error");
-    }
-}
+                const data = await res.json();
+
+                if (res.ok) {
+                    showToast("Agendamento confirmado com sucesso!", "success");
+                    listarAgendamentos();
+                } else {
+                    showToast("Erro ao confirmar: " + (data.msg || data.message), "error");
+                }
+
+            } catch (e) {
+                console.error(e);
+                showToast("Erro de conexão ao confirmar.", "error");
+            }
+        }
+
+        // ---------------- CANCELAR AGENDAMENTO ----------------
+        async function cancelarAgendamento(cliente, id) {
+            if (!userToken) {
+                showToast("Faça login para cancelar um agendamento.", "warning");
+                return;
+            }
+
+            try {
+                const res = await fetch(`/agendamentos/${cliente}/cancelar/${id}`, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${userToken}`,
+                        "Content-Type": "application/json"
+                    }
+                });
+
+                const data = await res.json();
+                if (res.ok) {
+                    showToast("Agendamento cancelado com sucesso!", "success");
+                    listarAgendamentos();
+                } else {
+                    showToast("Erro ao cancelar: " + (data.msg || data.message), "error");
+                }
+            } catch (e) {
+                console.error(e);
+                showToast("Erro de conexão ao cancelar.", "error");
+            }
+        }
 
         async function reagendarAgendamento(cliente, id, novaData, novoHorario) {
             if (!userToken) {
@@ -986,7 +1022,7 @@ async function cancelarAgendamento(cliente, id) {
             }
 
             try {
-                const res = await fetch(`/api/agendamentos/${cliente}/reagendar/${id}`, {
+                const res = await fetch(`/agendamentos/${cliente}/reagendar/${id}`, {
                     method: "POST",
                     headers: {
                         "Authorization": `Bearer ${userToken}`,
@@ -1020,8 +1056,112 @@ async function cancelarAgendamento(cliente, id) {
             }
         }
 
-  
-            
+        function criarBotaoVIP() {
+    const agendamentoForm = document.getElementById('agendamentoForm');
+
+    // Remove botão antigo, se existir
+    const antigoBtn = document.getElementById('upgradeVIP');
+    if (antigoBtn) antigoBtn.remove();
+
+    // Cria botão VIP
+    const vipBtn = document.createElement('button');
+    vipBtn.id = 'upgradeVIP';
+    vipBtn.type = 'button';
+    vipBtn.innerText = 'Upgrade VIP';
+    vipBtn.className = 'w-full mt-4 bg-yellow-500 text-white py-3 rounded-lg font-medium hover:opacity-90 transition-all';
+
+    vipBtn.addEventListener('click', async () => {
+        // ⚡ ALTERAÇÃO AQUI: Use o email do login em vez do campo do formulário
+        const emailLogin = document.getElementById('email').value; // Email do login
+        const emailForm = document.getElementById('Email')?.value; // Email do formulário (se existir)
+        
+        const email = emailForm || emailLogin; // Prefere o email do formulário, senão usa o do login
+        
+        if (!email) {
+            showToast("Informe seu email para ser VIP", "warning");
+            return;
+        }
+
+        const emailNormalizado = email.trim();
+
+        try {
+            const res = await fetch("/create-pix", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    amount: 0.01, // valor do teste
+                    description: "Assinatura VIP",
+                    email: emailNormalizado
+                })
+            });
+
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.error || 'Erro desconhecido ao criar pagamento');
+            }
+
+            const data = await res.json();
+            if (!data.qr_code_base64) {
+                throw new Error('Não foi possível gerar o QR Code PIX');
+            }
+
+            // Exibe QR Code
+            let pixDiv = document.getElementById("pixArea");
+            if (!pixDiv) {
+                pixDiv = document.createElement("div");
+                pixDiv.id = "pixArea";
+                pixDiv.className = 'mt-4 p-4 bg-white/10 rounded-lg';
+                agendamentoForm.appendChild(pixDiv);
+            }
+
+            pixDiv.innerHTML = `
+                <h3 class="mb-2">Escaneie o QR Code para pagar:</h3>
+                <img src="data:image/png;base64,${data.qr_code_base64}" class="mx-auto mb-2 w-48 h-48"/>
+                <p class="text-sm mb-1"><strong>Código copia e cola:</strong></p>
+                <textarea readonly class="w-full p-2 bg-white/5 rounded text-sm" style="height:80px">${data.qr_code}</textarea>
+            `;
+
+            showToast("QR Code gerado! Pague para ativar seu VIP", "success");
+
+            // 🔄 Função de polling para checar VIP
+            async function checkVipStatus(email, pixDiv, tentativas = 0, maxTentativas = 20) {
+                try {
+                    const res = await fetch(`/check-vip/${encodeURIComponent(email)}`);
+                    if (!res.ok) throw new Error("Erro ao checar VIP");
+
+                    const vipData = await res.json();
+                    if (vipData.vip) {
+                        showToast("Parabéns! Agora você é VIP 🎉", "success");
+                        pixDiv.remove();
+                        if (typeof listarAgendamentos === 'function') listarAgendamentos();
+                        if (typeof checkFreeLimit === 'function') checkFreeLimit();
+                        return;
+                    }
+
+                    if (tentativas < maxTentativas) {
+                        setTimeout(() => checkVipStatus(email, pixDiv, tentativas + 1, maxTentativas), 8000);
+                    } else {
+                        showToast("Ainda não recebemos o pagamento, tente novamente mais tarde.", "warning");
+                    }
+                } catch (err) {
+                    console.error("Erro ao checar VIP:", err);
+                    if (tentativas < maxTentativas) {
+                        setTimeout(() => checkVipStatus(email, pixDiv, tentativas + 1, maxTentativas), 8000);
+                    }
+                }
+            }
+
+            // Inicia a checagem de VIP
+            checkVipStatus(emailNormalizado, pixDiv);
+
+        } catch (err) {
+            console.error("Erro ao gerar Pix:", err);
+            showToast(`Erro ao gerar pagamento: ${err.message}`, "error");
+        }
+    });
+
+    agendamentoForm.appendChild(vipBtn);
+}
         // ---------------- INIT ----------------
         AOS.init({
             duration: 800,
@@ -1033,6 +1173,3 @@ async function cancelarAgendamento(cliente, id) {
     </script>
 </body>
 </html>
-
-
-
