@@ -627,7 +627,7 @@ function init() {
         async function listarAgendamentos(){
             if(!userToken) return;
             try{
-                const res = await fetch(`/agendamentos/${cliente}`, {
+                const res = await fetch(`/api/agendamentos/${cliente}`, {
                     headers: { "Authorization": `Bearer ${userToken}` }
                 });
                 const { agendamentos } = await res.json();
@@ -745,7 +745,7 @@ function init() {
             form.querySelector('button[type="submit"]').disabled = true;
      
             try{
-                const response=await fetch(`/agendar/${cliente}`,{
+                const response=await fetch(`/api/agendar/${cliente}`,{
                     method:'POST',
                     headers:{'Content-Type':'application/json',"Authorization":`Bearer ${userToken}`},
                     body:JSON.stringify(dataToSend)
@@ -910,7 +910,7 @@ function init() {
 
             if (email) {
                 try {
-                    const res = await fetch(`/check-vip/${encodeURIComponent(email)}`);
+                    const res = await fetch(`/api/check-vip/${encodeURIComponent(email)}`);
                     if (res.ok) {
                         const data = await res.json();
                         isVIP = data.vip === true;
@@ -962,7 +962,7 @@ function init() {
             }
 
             try {
-                const res = await fetch(`/agendamentos/${cliente}/confirmar/${id}`, {
+                const res = await fetch(`/api/agendamentos/${cliente}/confirmar/${id}`, {
                     method: "POST",
                     headers: {
                         "Authorization": `Bearer ${userToken}`,
@@ -994,7 +994,7 @@ function init() {
             }
 
             try {
-                const res = await fetch(`/agendamentos/${cliente}/cancelar/${id}`, {
+                const res = await fetch(`/api/agendamentos/${cliente}/cancelar/${id}`, {
                     method: "POST",
                     headers: {
                         "Authorization": `Bearer ${userToken}`,
@@ -1022,7 +1022,7 @@ function init() {
             }
 
             try {
-                const res = await fetch(`/agendamentos/${cliente}/reagendar/${id}`, {
+                const res = await fetch(`/api/agendamentos/${cliente}/reagendar/${id}`, {
                     method: "POST",
                     headers: {
                         "Authorization": `Bearer ${userToken}`,
@@ -1085,7 +1085,7 @@ function init() {
         const emailNormalizado = email.trim();
 
         try {
-            const res = await fetch("/create-pix", {
+            const res = await fetch("/api/create-pix", {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1126,7 +1126,7 @@ function init() {
             // 🔄 Função de polling para checar VIP
             async function checkVipStatus(email, pixDiv, tentativas = 0, maxTentativas = 20) {
                 try {
-                    const res = await fetch(`/check-vip/${encodeURIComponent(email)}`);
+                    const res = await fetch(`/api/check-vip/${encodeURIComponent(email)}`);
                     if (!res.ok) throw new Error("Erro ao checar VIP");
 
                     const vipData = await res.json();
