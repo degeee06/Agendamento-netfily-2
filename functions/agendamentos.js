@@ -15,7 +15,7 @@ if (process.env.GOOGLE_SERVICE_ACCOUNT) {
   }
 }
 
-// ---------------- Funções do Google Sheets (com fallback) ----------------
+// ---------------- Funções do Google Sheets CORRIGIDAS ----------------
 async function accessSpreadsheet(clienteId) {
   if (!creds) {
     throw new Error("Google Sheets não configurado");
@@ -30,7 +30,13 @@ async function accessSpreadsheet(clienteId) {
   if (error || !data) throw new Error(`Cliente ${clienteId} não encontrado`);
 
   const doc = new GoogleSpreadsheet(data.spreadsheet_id);
-  await doc.useServiceAccountAuth(creds);
+  
+  // ✅ CORREÇÃO: Nova forma de autenticação do Google Sheets
+  await doc.useServiceAccountAuth({
+    client_email: creds.client_email,
+    private_key: creds.private_key,
+  });
+  
   await doc.loadInfo();
   return doc;
 }
@@ -66,7 +72,6 @@ async function updateRowInSheet(sheet, rowId, updatedData) {
     }
   } catch (error) {
     console.error("❌ Erro ao atualizar Google Sheets:", error);
-    // Não quebra a aplicação se der erro no sheet
   }
 }
 
@@ -84,7 +89,7 @@ async function horarioDisponivel(cliente, data, horario, ignoreId = null) {
   return agendamentos.length === 0;
 }
 
-// ---------------- Middleware Auth CORRIGIDO ----------------
+// ---------------- Middleware Auth ----------------
 async function authMiddleware(event) {
   try {
     const token = event.headers.authorization?.split("Bearer ")[1];
@@ -123,6 +128,32 @@ async function authMiddleware(event) {
   }
 }
 
+// ---------------- Função para extrair cliente CORRIGIDA ----------------
+function extractClienteFromPath(path, httpMethod) {
+  const pathParts = path.split('/').filter(part => part);
+  
+  // ✅ Para rotas simples: /api/agendamentos/cliente1 ou /api/agendar/cliente1
+  if (httpMethod === 'GET' || path.includes('/agendar/')) {
+    for (let i = pathParts.length - 1; i >= 0; i--) {
+      if (pathParts[i] && pathParts[i] !== 'api' && pathParts[i] !== 'agendamentos' && pathParts[i] !== 'agendar') {
+        return pathParts[i];
+      }
+    }
+  }
+  
+  // ✅ Para rotas com ID: /api/agendamentos/cliente1/cancelar/ID
+  if (path.includes('/cancelar/') || path.includes('/confirmar/') || path.includes('/reagendar/')) {
+    // O cliente é sempre o penúltimo elemento antes da ação
+    for (let i = 0; i < pathParts.length; i++) {
+      if (pathParts[i] === 'agendamentos' && i + 1 < pathParts.length) {
+        return pathParts[i + 1];
+      }
+    }
+  }
+  
+  return null;
+}
+
 export async function handler(event) {
   console.log('🚀 Function iniciada para:', event.path);
   
@@ -133,20 +164,9 @@ export async function handler(event) {
     
     console.log('📦 Parâmetros:', { path, httpMethod, pathParams });
 
-    // ✅ CORREÇÃO: Extrai cliente da URL corretamente para TODAS as rotas
-    let cliente = pathParams.cliente;
-
-    // ✅ Fallback se cliente for undefined - funciona para todas as rotas
-    if (!cliente) {
-      const pathParts = path.split('/');
-      for (let i = pathParts.length - 1; i >= 0; i--) {
-        if (pathParts[i] && pathParts[i] !== 'api' && pathParts[i] !== 'agendamentos' && pathParts[i] !== 'agendar') {
-          cliente = pathParts[i];
-          break;
-        }
-      }
-    }
-
+    // ✅ CORREÇÃO: Extrai cliente de forma inteligente baseada na rota
+    let cliente = extractClienteFromPath(path, httpMethod);
+    
     console.log('👤 Cliente extraído:', cliente);
 
     if (!cliente) {
@@ -156,18 +176,19 @@ export async function handler(event) {
       };
     }
 
+    const auth = await authMiddleware(event);
+    if (auth.error) return auth.error;
+    
+    // ✅ Verificação de acesso (agora fora do switch para todas as rotas)
+    if (auth.clienteId !== cliente && auth.clienteId !== "admin") {
+      return { 
+        statusCode: 403, 
+        body: JSON.stringify({ msg: "Acesso negado" }) 
+      };
+    }
+
     // ---------------- LISTAR AGENDAMENTOS ----------------
     if (path.includes('/agendamentos/') && httpMethod === 'GET') {      
-      const auth = await authMiddleware(event);
-      if (auth.error) return auth.error;
-      
-      if (auth.clienteId !== cliente && auth.clienteId !== "admin") {
-        return { 
-          statusCode: 403, 
-          body: JSON.stringify({ msg: "Acesso negado" }) 
-        };
-      }
-
       const { data: agendamentos, error } = await supabase
         .from("agendamentos")
         .select("*")
@@ -186,16 +207,6 @@ export async function handler(event) {
 
     // ---------------- AGENDAR ----------------
     if (path.includes('/agendar/') && httpMethod === 'POST') {
-      const auth = await authMiddleware(event);
-      if (auth.error) return auth.error;
-      
-      if (auth.clienteId !== cliente && auth.clienteId !== "admin") {
-        return { 
-          statusCode: 403, 
-          body: JSON.stringify({ msg: "Acesso negado" }) 
-        };
-      }
-
       const { Nome, Email, Telefone, Data, Horario } = JSON.parse(event.body);
       
       if (!Nome || !Email || !Telefone || !Data || !Horario) {
@@ -256,140 +267,123 @@ export async function handler(event) {
       };
     }
 
-    // ---------------- CONFIRMAR AGENDAMENTO ----------------
-    if (path.includes('/confirmar/') && httpMethod === 'POST') {
-      const { cliente, id } = pathParams;
-      
-      const auth = await authMiddleware(event);
-      if (auth.error) return auth.error;
-      
-      // ✅ CORREÇÃO: Verificação mais flexível
-      if (auth.clienteId.toString() !== cliente.toString()) {
-        return { 
-          statusCode: 403, 
-          body: JSON.stringify({ msg: "Acesso negado" }) 
-        };
-      }
-
-      const { data, error } = await supabase
-        .from("agendamentos")
-        .update({ confirmado: true, status: "confirmado" })
-        .eq("id", id)
-        .eq("cliente", cliente)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // Atualiza Google Sheet
-      try {
-        const doc = await accessSpreadsheet(cliente);
-        await updateRowInSheet(doc.sheetsByIndex[0], id, data);
-      } catch (sheetError) {
-        console.error('⚠️ Erro ao atualizar Google Sheets:', sheetError);
-      }
-
-      return { 
-        statusCode: 200, 
-        body: JSON.stringify({ msg: "Agendamento confirmado", agendamento: data }) 
-      };
-    }
-
     // ---------------- CANCELAR AGENDAMENTO ----------------
-    if (path.includes('/cancelar/') && httpMethod === 'POST') {
-      const { cliente, id } = pathParams;
+    if ((path.includes('/cancelar/') || path.includes('/confirmar/') || path.includes('/reagendar/')) && httpMethod === 'POST') {
+      // ✅ CORREÇÃO: Extrai o ID do agendamento da URL
+      const pathParts = path.split('/');
+      const id = pathParts[pathParts.length - 1]; // Último elemento é o ID
       
-      const auth = await authMiddleware(event);
-      if (auth.error) return auth.error;
-      
-      // ✅ CORREÇÃO: Verificação mais flexível
-      if (auth.clienteId.toString() !== cliente.toString()) {
-        return { 
-          statusCode: 403, 
-          body: JSON.stringify({ msg: "Acesso negado" }) 
-        };
-      }
+      console.log('🆔 ID do agendamento:', id);
 
-      const { data, error } = await supabase
-        .from("agendamentos")
-        .update({ status: "cancelado", confirmado: false })
-        .eq("id", id)
-        .eq("cliente", cliente)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // Atualiza Google Sheet
-      try {
-        const doc = await accessSpreadsheet(cliente);
-        await updateRowInSheet(doc.sheetsByIndex[0], id, data);
-      } catch (sheetError) {
-        console.error('⚠️ Erro ao atualizar Google Sheets:', sheetError);
-      }
-
-      return { 
-        statusCode: 200, 
-        body: JSON.stringify({ msg: "Agendamento cancelado", agendamento: data }) 
-      };
-    }
-
-    // ---------------- REAGENDAR ----------------
-    if (path.includes('/reagendar/') && httpMethod === 'POST') {
-      const { cliente, id } = pathParams;
-      const { novaData, novoHorario } = JSON.parse(event.body);
-      
-      if (!novaData || !novoHorario) {
+      if (!id) {
         return { 
           statusCode: 400, 
-          body: JSON.stringify({ msg: "Data e horário obrigatórios" }) 
+          body: JSON.stringify({ msg: "ID do agendamento não especificado" }) 
         };
       }
 
-      const auth = await authMiddleware(event);
-      if (auth.error) return auth.error;
-      
-      // ✅ CORREÇÃO: Verificação mais flexível
-      if (auth.clienteId.toString() !== cliente.toString()) {
+      // ---------------- CANCELAR ----------------
+      if (path.includes('/cancelar/')) {
+        const { data, error } = await supabase
+          .from("agendamentos")
+          .update({ status: "cancelado", confirmado: false })
+          .eq("id", id)
+          .eq("cliente", cliente)
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        // Atualiza Google Sheet
+        try {
+          if (creds) {
+            const doc = await accessSpreadsheet(cliente);
+            await updateRowInSheet(doc.sheetsByIndex[0], id, data);
+          }
+        } catch (sheetError) {
+          console.error('⚠️ Erro ao atualizar Google Sheets:', sheetError);
+        }
+
         return { 
-          statusCode: 403, 
-          body: JSON.stringify({ msg: "Acesso negado" }) 
+          statusCode: 200, 
+          body: JSON.stringify({ msg: "Agendamento cancelado", agendamento: data }) 
         };
       }
 
-      const disponivel = await horarioDisponivel(cliente, novaData, novoHorario, id);
-      if (!disponivel) {
+      // ---------------- CONFIRMAR ----------------
+      if (path.includes('/confirmar/')) {
+        const { data, error } = await supabase
+          .from("agendamentos")
+          .update({ confirmado: true, status: "confirmado" })
+          .eq("id", id)
+          .eq("cliente", cliente)
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        // Atualiza Google Sheet
+        try {
+          if (creds) {
+            const doc = await accessSpreadsheet(cliente);
+            await updateRowInSheet(doc.sheetsByIndex[0], id, data);
+          }
+        } catch (sheetError) {
+          console.error('⚠️ Erro ao atualizar Google Sheets:', sheetError);
+        }
+
         return { 
-          statusCode: 400, 
-          body: JSON.stringify({ msg: "Horário indisponível" }) 
+          statusCode: 200, 
+          body: JSON.stringify({ msg: "Agendamento confirmado", agendamento: data }) 
         };
       }
 
-      const { data, error } = await supabase
-        .from("agendamentos")
-        .update({ data: novaData, horario: novoHorario })
-        .eq("id", id)
-        .eq("cliente", cliente)
-        .select()
-        .single();
+      // ---------------- REAGENDAR ----------------
+      if (path.includes('/reagendar/')) {
+        const { novaData, novoHorario } = JSON.parse(event.body);
+        
+        if (!novaData || !novoHorario) {
+          return { 
+            statusCode: 400, 
+            body: JSON.stringify({ msg: "Data e horário obrigatórios" }) 
+          };
+        }
 
-      if (error) throw error;
+        const disponivel = await horarioDisponivel(cliente, novaData, novoHorario, id);
+        if (!disponivel) {
+          return { 
+            statusCode: 400, 
+            body: JSON.stringify({ msg: "Horário indisponível" }) 
+          };
+        }
 
-      // Atualiza Google Sheet
-      try {
-        const doc = await accessSpreadsheet(cliente);
-        await updateRowInSheet(doc.sheetsByIndex[0], id, data);
-      } catch (sheetError) {
-        console.error('⚠️ Erro ao atualizar Google Sheets:', sheetError);
+        const { data, error } = await supabase
+          .from("agendamentos")
+          .update({ data: novaData, horario: novoHorario })
+          .eq("id", id)
+          .eq("cliente", cliente)
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        // Atualiza Google Sheet
+        try {
+          if (creds) {
+            const doc = await accessSpreadsheet(cliente);
+            await updateRowInSheet(doc.sheetsByIndex[0], id, data);
+          }
+        } catch (sheetError) {
+          console.error('⚠️ Erro ao atualizar Google Sheets:', sheetError);
+        }
+
+        return { 
+          statusCode: 200, 
+          body: JSON.stringify({ msg: "Agendamento reagendado com sucesso", agendamento: data }) 
+        };
       }
-
-      return { 
-        statusCode: 200, 
-        body: JSON.stringify({ msg: "Agendamento reagendado com sucesso", agendamento: data }) 
-      };
     }
 
-    // Rota não encontrada
     return { 
       statusCode: 404, 
       body: JSON.stringify({ msg: "Rota não encontrada" }) 
@@ -403,4 +397,3 @@ export async function handler(event) {
     };
   }
 }
-
