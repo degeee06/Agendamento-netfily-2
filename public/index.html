@@ -3,277 +3,354 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Agendamentos</title>
+    <title>Agendamento</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/feather-icons"></script>
-    <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
     <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+    <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+    <script src="https://unpkg.com/feather-icons"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/imask/6.4.2/imask.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+      
+        .glass-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        .scrollbar-hide::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .scrollbar-hide::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+        
+        .scrollbar-hide::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+        }
+        
+        .scrollbar-hide::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .input-field {
+            transition: all 0.3s ease;
+        }
+        
+        .input-field:focus {
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.3);
+        }
+        
+        .status-pendente {
+            color: #fbbf24;
+            background-color: rgba(251, 191, 36, 0.15);
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+
+        .status-confirmado {
+            color: #34d399;
+            background-color: rgba(52, 211, 153, 0.15);
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+
+        .status-cancelado {
+            color: #f87171;
+            background-color: rgba(248, 113, 113, 0.15);
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+        
+        .tab-dia.active {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        .agendamento-card {
+            transition: all 0.3s ease;
+        }
+        
+        .agendamento-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        
+        .loading-spinner {
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 2px solid white;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 640px) {
+            .mobile-flex-col {
+                flex-direction: column;
+            }
+            
+            .mobile-w-full {
+                width: 100%;
+            }
+            
+            .mobile-text-center {
+                text-align: center;
+            }
+            
+            .dias-tabs-container {
+                overflow-x: auto;
+                padding-bottom: 8px;
+            }
+            
+            .dias-tabs-container::-webkit-scrollbar {
+                height: 4px;
+            }
+            
+            .dias-tabs-container::-webkit-scrollbar-thumb {
+                background: rgba(255, 255, 255, 0.2);
+                border-radius: 4px;
+            }
+        }
+    </style>
 </head>
-<body class="bg-gradient-to-br from-gray-900 to-black min-h-screen text-white">
-    <div class="container mx-auto px-4 py-8">
-        <!-- Header -->
-        <header class="text-center mb-8">
-            <h1 class="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent mb-2">
-                Sistema de Agendamentos
-            </h1>
-            <p class="text-gray-300">Gerencie seus agendamentos de forma eficiente</p>
+<body class="min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 text-white">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <!-- Header with animated gradient -->
+        <header class="text-center mb-12" data-aos="fade-down">
+            <div class="flex justify-between items-center mb-3">
+                <h1 class="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-300">
+                    Agendamento
+                </h1>
+                <button id="logoutBtn" style="display:none;" class="text-sm bg-red-600 hover:bg-red-700 px-3 py-2 rounded-lg flex items-center gap-2">
+                    <i data-feather="log-out" class="w-4 h-4"></i>
+                    Sair
+                </button>
+            </div>
+            <p class="text-lg opacity-90 max-w-2xl mx-auto">
+                Gerencie seus compromissos com uma interface intuitiva e elegante
+            </p>
         </header>
 
         <!-- Login Section -->
-        <section id="loginSection" class="max-w-md mx-auto mb-8">
-            <div class="glass-card rounded-xl p-6 shadow-xl">
-                <h2 class="text-2xl font-semibold mb-4 text-center">Acesso Administrativo</h2>
-                <div class="space-y-4">
+        <div id="loginSection" class="glass-card rounded-2xl p-8 mb-8" data-aos="fade-up">
+            <div class="flex items-center justify-center mb-6">
+                <div class="p-3 rounded-full bg-gradient-to-br from-indigo-500 to-cyan-500 shadow-lg">
+                    <i data-feather="lock" class="w-6 h-6 text-white"></i>
+                </div>
+            </div>
+            <h2 class="text-2xl font-semibold text-center mb-6">Acesso ao Sistema</h2>
+            <div class="space-y-5 max-w-md mx-auto">
+                <div>
+                    <label for="email" class="block mb-2 text-sm font-medium opacity-80">Email</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i data-feather="mail" class="w-5 h-5 text-gray-400"></i>
+                        </div>
+                        <input type="email" id="email" placeholder="seu@email.com" 
+                               class="w-full pl-10 pr-4 py-3 rounded-lg bg-white/10 border border-white/20 focus:outline-none input-field">
+                    </div>
+                </div>
+                <div>
+                    <label for="senha" class="block mb-2 text-sm font-medium opacity-80">Senha</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i data-feather="key" class="w-5 h-5 text-gray-400"></i>
+                        </div>
+                        <input type="password" id="senha" placeholder="••••••••" 
+                               class="w-full pl-10 pr-4 py-3 rounded-lg bg-white/10 border border-white/20 focus:outline-none input-field">
+                    </div>
+                </div>
+                <button id="loginBtn" class="w-full bg-gradient-to-r from-indigo-500 to-cyan-500 text-white py-3 px-6 rounded-lg font-medium hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-lg">
+                    <i data-feather="log-in" class="w-5 h-5"></i>
+                    <span id="loginText">Entrar</span>
+                    <div id="loginSpinner" class="loading-spinner hidden"></div>
+                </button>
+            </div>
+        </div>
+
+        <!-- Appointment Form (Hidden Initially) -->
+        <form id="agendamentoForm" style="display:none;" class="glass-card rounded-2xl p-8 mb-8" data-aos="fade-up">
+            <div class="flex items-center justify-center mb-6">
+                <div class="p-3 rounded-full bg-gradient-to-br from-indigo-500 to-cyan-500 shadow-lg">
+                    <i data-feather="calendar" class="w-6 h-6 text-white"></i>
+                </div>
+            </div>
+            <h2 class="text-2xl font-semibold text-center mb-6">Novo Agendamento</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-4xl mx-auto">
+                <div class="space-y-5">
                     <div>
-                        <label class="block text-sm font-medium mb-1">Email</label>
-                        <input type="email" id="email" class="w-full p-3 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-500">
+                        <label for="Nome" class="block mb-2 text-sm font-medium opacity-80">Nome Completo</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i data-feather="user" class="w-5 h-5 text-gray-400"></i>
+                            </div>
+                            <input type="text" name="Nome" placeholder="Seu nome" required 
+                                   class="w-full pl-10 pr-4 py-3 rounded-lg bg-white/10 border border-white/20 focus:outline-none input-field">
+                        </div>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium mb-1">Senha</label>
-                        <input type="password" id="senha" class="w-full p-3 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-500">
+                        <label for="Email" class="block mb-2 text-sm font-medium opacity-80">Email</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i data-feather="mail" class="w-5 h-5 text-gray-400"></i>
+                            </div>
+                            <input type="email" name="Email" placeholder="seu@email.com" required 
+                                   class="w-full pl-10 pr-4 py-3 rounded-lg bg-white/10 border border-white/20 focus:outline-none input-field">
+                        </div>
                     </div>
-                    <button id="loginBtn" class="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white py-3 rounded-lg font-semibold hover:opacity-90 transition-all duration-200 flex items-center justify-center gap-2">
-                        <span id="loginText">Entrar</span>
-                        <div id="loginSpinner" class="hidden animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                </div>
+                <div class="space-y-5">
+                    <div>
+                        <label for="Telefone" class="block mb-2 text-sm font-medium opacity-80">Telefone</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i data-feather="phone" class="w-5 h-5 text-gray-400"></i>
+                            </div>
+                            <input type="text" id="Telefone" name="Telefone" placeholder="(00) 00000-0000" required 
+                                   class="w-full pl-10 pr-4 py-3 rounded-lg bg-white/10 border border-white/20 focus:outline-none input-field">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="Data" class="block mb-2 text-sm font-medium opacity-80">Data</label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <i data-feather="calendar" class="w-5 h-5 text-gray-400"></i>
+                                </div>
+                                <input type="date" id="Data" name="Data" placeholder="Data do Agendamento" required 
+                                       class="w-full pl-10 pr-4 py-3 rounded-lg bg-white/10 border border-white/20 focus:outline-none input-field">
+                            </div>
+                        </div>
+                        <div>
+                            <label for="Horario" class="block mb-2 text-sm font-medium opacity-80">Horário</label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <i data-feather="clock" class="w-5 h-5 text-gray-400"></i>
+                                </div>
+                                <input type="time" id="Horario" name="Horario" placeholder="Horário" required 
+                                       class="w-full pl-10 pr-4 py-3 rounded-lg bg-white/10 border border-white/20 focus:outline-none input-field">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="max-w-md mx-auto mt-8">
+                <button type="submit" class="w-full bg-gradient-to-r from-indigo-500 to-cyan-500 text-white py-3 px-6 rounded-lg font-medium hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-lg">
+                    <i data-feather="plus" class="w-5 h-5"></i>
+                    <span id="agendarText">Agendar</span>
+                    <div id="agendarSpinner" class="loading-spinner hidden"></div>
+                </button>
+            </div>
+        </form>
+
+        <!-- Filters Section -->
+        <div id="filtersSection" style="display:none;" class="glass-card rounded-2xl p-6 mb-6" data-aos="fade-up">
+            <div class="flex flex-col md:flex-row gap-4 items-center">
+                <div class="flex-1 w-full">
+                    <label for="searchInput" class="sr-only">Pesquisar</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i data-feather="search" class="w-5 h-5 text-gray-400"></i>
+                        </div>
+                        <input type="text" id="searchInput" placeholder="Pesquisar por nome ou email" 
+                               class="w-full pl-10 pr-4 py-3 rounded-lg bg-white/10 border border-white/20 focus:outline-none input-field">
+                    </div>
+                </div>
+                <div class="w-full md:w-48 relative">
+                    <label for="statusFilter" class="sr-only">Status</label>
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i data-feather="filter" class="w-5 h-5 text-gray-400"></i>
+                    </div>
+                    <select id="statusFilter" 
+                        class="w-full appearance-none pl-10 pr-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none input-field">
+                        <option value="" class="text-black">Todos os status</option>
+                        <option value="pendente" class="text-black">Pendente</option>
+                        <option value="confirmado" class="text-black">Confirmado</option>
+                        <option value="cancelado" class="text-black">Cancelado</option>
+                    </select>
+                </div>
+                <div class="flex gap-2 mobile-w-full mobile-flex-col md:flex-row">
+                    <button id="exportCSVBtn" class="px-4 py-3 rounded-lg bg-white/10 border border-white/20 hover:bg-white/20 transition-all flex items-center justify-center gap-2 mobile-w-full">
+                        <i data-feather="download" class="w-5 h-5"></i>
+                        <span class="hidden md:inline">CSV</span>
+                    </button>
+                    <button id="exportPDFBtn" class="px-4 py-3 rounded-lg bg-white/10 border border-white/20 hover:bg-white/20 transition-all flex items-center justify-center gap-2 mobile-w-full">
+                        <i data-feather="file-text" class="w-5 h-5"></i>
+                        <span class="hidden md:inline">PDF</span>
                     </button>
                 </div>
             </div>
-        </section>
+        </div>
 
-        <!-- Config Section (hidden initially) -->
-        <section id="configSection" style="display: none;" class="mb-8">
-            <div class="grid md:grid-cols-2 gap-6">
-                <!-- Configuração de Horários -->
-                <div class="glass-card rounded-xl p-6">
-                    <h3 class="text-xl font-semibold mb-4 flex items-center gap-2">
-                        <i data-feather="settings"></i>
-                        ⚙️ Configuração de Horários
-                    </h3>
-                    
-                    <div class="space-y-4">
-                        <!-- Dias da Semana -->
-                        <div>
-                            <h4 class="font-medium mb-2">📅 Dias da Semana Disponíveis</h4>
-                            <div class="flex flex-wrap gap-2">
-                                <button class="dias-semana-btn bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition-all" data-dia="0" onclick="toggleDiaSemana(0)">Domingo</button>
-                                <button class="dias-semana-btn bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition-all" data-dia="1" onclick="toggleDiaSemana(1)">Segunda</button>
-                                <button class="dias-semana-btn bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition-all" data-dia="2" onclick="toggleDiaSemana(2)">Terça</button>
-                                <button class="dias-semana-btn bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition-all" data-dia="3" onclick="toggleDiaSemana(3)">Quarta</button>
-                                <button class="dias-semana-btn bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition-all" data-dia="4" onclick="toggleDiaSemana(4)">Quinta</button>
-                                <button class="dias-semana-btn bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition-all" data-dia="5" onclick="toggleDiaSemana(5)">Sexta</button>
-                                <button class="dias-semana-btn bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition-all" data-dia="6" onclick="toggleDiaSemana(6)">Sábado</button>
-                            </div>
-                        </div>
-
-                        <!-- Horários Disponíveis -->
-                        <div>
-                            <h4 class="font-medium mb-2">⏰ Horários Disponíveis</h4>
-                            <div id="horariosConfig" class="flex flex-wrap gap-2 mb-3">
-                                <!-- Horários serão renderizados aqui -->
-                            </div>
-                            <div class="flex gap-2">
-                                <input type="time" id="novoHorario" class="flex-1 p-2 rounded-lg bg-white/5 border border-white/10">
-                                <button onclick="adicionarHorario()" class="bg-cyan-600 hover:bg-cyan-700 px-4 py-2 rounded-lg transition-all">Adicionar Horário</button>
-                            </div>
-                        </div>
-
-                        <!-- Configurações Gerais -->
-                        <div>
-                            <h4 class="font-medium mb-2">🔧 Configurações Gerais</h4>
-                            <div class="space-y-3">
-                                <div>
-                                    <label class="block text-sm mb-1">Intervalo (minutos):</label>
-                                    <input type="number" id="intervaloMinutos" class="w-full p-2 rounded-lg bg-white/5 border border-white/10" value="60">
-                                </div>
-                                <div>
-                                    <label class="block text-sm mb-1">Máx. Agendamentos/Dia:</label>
-                                    <input type="number" id="maxAgendamentos" class="w-full p-2 rounded-lg bg-white/5 border border-white/10" value="10">
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Datas Bloqueadas -->
-                        <div>
-                            <h4 class="font-medium mb-2">🚫 Datas Bloqueadas</h4>
-                            <div id="datasBloqueadasList" class="space-y-2 mb-3">
-                                <!-- Datas bloqueadas serão renderizadas aqui -->
-                            </div>
-                            <div class="flex gap-2">
-                                <input type="date" id="dataBloqueada" class="flex-1 p-2 rounded-lg bg-white/5 border border-white/10">
-                                <button onclick="adicionarDataBloqueada()" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg transition-all">Bloquear Data</button>
-                            </div>
-                        </div>
-
-                        <button onclick="salvarConfiguracoes()" class="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 rounded-lg font-semibold hover:opacity-90 transition-all">
-                            Salvar Configurações
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Calendário e Configurações Específicas -->
-                <div class="glass-card rounded-xl p-6">
-                    <h3 class="text-xl font-semibold mb-4 flex items-center gap-2">
-                        <i data-feather="calendar"></i>
-                        📅 Calendário e Configurações
-                    </h3>
-                    
-                    <div id="calendar" class="mb-6">
-                        <!-- Calendário será gerado aqui -->
-                    </div>
-
-                    <div id="configDataEspecifica" class="space-y-4" style="display: none;">
-                        <h4 class="font-medium">Configurações para <span id="dataSelecionadaTexto"></span></h4>
-                        
-                        <input type="hidden" id="dataSelecionada">
-                        
-                        <div class="flex items-center gap-2">
-                            <input type="checkbox" id="dataBloqueadaCheck" class="rounded">
-                            <label>Data bloqueada</label>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-sm mb-1">Máx. Agendamentos (opcional):</label>
-                            <input type="number" id="maxAgendamentosData" class="w-full p-2 rounded-lg bg-white/5 border border-white/10">
-                        </div>
-                        
-                        <div>
-                            <label class="block text-sm mb-1">Horários Específicos:</label>
-                            <div id="horariosEspecificos" class="space-y-1 mb-2">
-                                <!-- Horários específicos serão renderizados aqui -->
-                            </div>
-                            <div class="flex gap-2">
-                                <input type="time" id="novoHorarioEspecifico" class="flex-1 p-2 rounded-lg bg-white/5 border border-white/10">
-                                <button onclick="adicionarHorarioEspecifico()" class="bg-cyan-600 hover:bg-cyan-700 px-3 py-2 rounded-lg text-sm transition-all">Adicionar</button>
-                            </div>
-                        </div>
-                        
-                        <button onclick="salvarConfiguracaoData()" class="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-2 rounded-lg font-semibold hover:opacity-90 transition-all">
-                            Salvar Configuração da Data
-                        </button>
-                    </div>
-                </div>
+        <!-- Tabs Dias da Semana -->
+        <div id="diasTabs" style="display:none;" class="dias-tabs-container flex flex-col md:flex-row gap-4 mb-6" data-aos="fade-up">
+            <div class="flex gap-2 overflow-x-auto pb-2">
+                <button data-dia="1" class="tab-dia active px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-cyan-500 text-white font-medium whitespace-nowrap">Segunda</button>
+                <button data-dia="2" class="tab-dia px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all font-medium whitespace-nowrap">Terça</button>
+                <button data-dia="3" class="tab-dia px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all font-medium whitespace-nowrap">Quarta</button>
+                <button data-dia="4" class="tab-dia px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all font-medium whitespace-nowrap">Quinta</button>
+                <button data-dia="5" class="tab-dia px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all font-medium whitespace-nowrap">Sexta</button>
+                <button data-dia="6" class="tab-dia px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all font-medium whitespace-nowrap">Sábado</button>
             </div>
-        </section>
+            <div class="flex gap-2 md:ml-4 md:pl-4 md:border-l border-white/20 overflow-x-auto pb-2">
+                <button data-semana="-1" class="tab-semana px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all font-medium whitespace-nowrap">Semana Passada</button>
+                <button data-semana="-2" class="tab-semana px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all font-medium whitespace-nowrap">2 Semanas</button>
+                <button data-semana="-4" class="tab-semana px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all font-medium whitespace-nowrap">1 Mês</button>
+            </div>
+        </div>
 
-        <!-- Calendar Section (hidden initially) -->
-        <section id="calendarSection" style="display: none;" class="mb-8">
-            <!-- Filtros e Tabs -->
-            <div id="filtersSection" style="display: none;" class="glass-card rounded-xl p-6 mb-6">
-                <div class="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-                    <div class="flex-1">
-                        <input type="text" id="searchInput" placeholder="🔍 Buscar por nome ou email..." class="w-full p-3 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-500">
-                    </div>
-                    <div class="flex gap-4">
-                        <select id="statusFilter" class="p-3 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-500">
-                            <option value="">Todos os status</option>
-                            <option value="pendente">Pendente</option>
-                            <option value="confirmado">Confirmado</option>
-                            <option value="cancelado">Cancelado</option>
-                        </select>
-                        <button id="exportCSVBtn" class="bg-green-600 hover:bg-green-700 px-4 py-3 rounded-lg transition-all flex items-center gap-2">
-                            <i data-feather="download"></i> CSV
-                        </button>
-                        <button id="exportPDFBtn" class="bg-red-600 hover:bg-red-700 px-4 py-3 rounded-lg transition-all flex items-center gap-2">
-                            <i data-feather="download"></i> PDF
-                        </button>
-                        <button id="logoutBtn" style="display: none;" class="bg-gray-600 hover:bg-gray-700 px-4 py-3 rounded-lg transition-all flex items-center gap-2">
-                            <i data-feather="log-out"></i> Sair
-                        </button>
-                    </div>
+        <!-- Appointments List -->
+        <div id="meusAgendamentos" class="glass-card rounded-2xl p-6 shadow-xl max-h-[500px] overflow-y-auto scrollbar-hide" style="display:none;" data-aos="fade-up">
+            <div class="text-center py-8">
+                <div class="p-4 rounded-full bg-white/10 inline-block mb-4">
+                    <i data-feather="calendar" class="w-8 h-8 text-gray-300"></i>
                 </div>
+                <p class="text-gray-300">Nenhum agendamento encontrado</p>
             </div>
-
-            <!-- Tabs de Dias/Semanas -->
-            <div id="diasTabs" style="display: none;" class="glass-card rounded-xl p-4 mb-6">
-                <div class="flex flex-wrap gap-2">
-                    <!-- Dias da semana -->
-                    <button class="tab-dia bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg transition-all" data-dia="1">Segunda</button>
-                    <button class="tab-dia bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg transition-all" data-dia="2">Terça</button>
-                    <button class="tab-dia bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg transition-all" data-dia="3">Quarta</button>
-                    <button class="tab-dia bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg transition-all" data-dia="4">Quinta</button>
-                    <button class="tab-dia bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg transition-all" data-dia="5">Sexta</button>
-                    <button class="tab-dia bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg transition-all" data-dia="6">Sábado</button>
-                    <button class="tab-dia bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg transition-all" data-dia="0">Domingo</button>
-                    
-                    <!-- Semanas -->
-                    <button class="tab-semana bg-white/5 hover:bg-white/10 px-4 py-2 rounded-lg transition-all" data-semana="1">Próxima Semana</button>
-                    <button class="tab-semana bg-white/5 hover:bg-white/10 px-4 py-2 rounded-lg transition-all" data-semana="2">Próximas 2 Semanas</button>
-                    <button class="tab-semana bg-white/5 hover:bg-white/10 px-4 py-2 rounded-lg transition-all" data-semana="-1">Semana Passada</button>
-                </div>
-            </div>
-
-            <!-- Lista de Agendamentos -->
-            <div id="meusAgendamentos" style="display: none;">
-                <!-- Agendamentos serão renderizados aqui -->
-            </div>
-        </section>
+        </div>
     </div>
 
     <!-- Toast Container -->
     <div id="toast-container" class="fixed top-4 right-4 space-y-2 z-50"></div>
 
-    <style>
-        .glass-card {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .dias-semana-btn.active,
-        .tab-dia.active,
-        .tab-semana.active {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-        }
-        
-        .agendamento-card {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-        }
-        
-        .agendamento-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-        }
-        
-        .calendar-day {
-            transition: all 0.2s ease;
-        }
-        
-        .calendar-day:hover {
-            background: rgba(255, 255, 255, 0.1);
-        }
-        
-        .calendar-day.blocked {
-            background: rgba(239, 68, 68, 0.3);
-            color: #9ca3af;
-            cursor: not-allowed;
-        }
-        
-        .calendar-day.blocked:hover {
-            background: rgba(239, 68, 68, 0.4);
-        }
-    </style>
-
     <script type="module">
         import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
-        
+
         const SUPABASE_URL = "https://otyxjcxxqwjotnuyrvmc.supabase.co";
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im90eXhqY3h4cXdqb3RudXlydm1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0MzU5MTQsImV4cCI6MjA3MzAxMTkxNH0.O6pWtKMQvsIQlOt7G6nIcDMMKoTJU-G-qpZiiE6Q3Hk";
-        
         const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        
+
         let userToken = null;
         let agendamentosCache = [];
         let diaSelecionado = 1;
-        let configHorarios = null;
-        let configDatasEspecificas = [];
-        let dataSelecionadaCalendario = null;
-        function formatData(data){
-    if (!data) return 'Data inválida';
-    const [y, m, d] = data.split("-");
-    return `${d}/${m}/${y}`;
-}
+        let telefoneMask = null;
 
         const form = document.getElementById('agendamentoForm');
         const loginBtn = document.getElementById('loginBtn');
@@ -286,270 +363,48 @@
         const logoutBtn = document.getElementById("logoutBtn");
         const loginText = document.getElementById("loginText");
         const loginSpinner = document.getElementById("loginSpinner");
-        const configSection = document.getElementById("configSection");
-        const calendarSection = document.getElementById("calendarSection");
-        
+        const agendarText = document.getElementById("agendarText");
+        const agendarSpinner = document.getElementById("agendarSpinner");
+        const telefoneInput = document.getElementById("Telefone");
+        const dataInput = document.getElementById("Data");
+        const horarioInput = document.getElementById("Horario");
+
         const pathParts = window.location.pathname.split('/');
+        const cliente = pathParts[1] || '';
 
-// DETECTAR SE É ADMIN PELA URL
-const isAdminPath = !window.location.pathname.includes('/cliente/');
-
-// cliente padrão (enquanto só existe 1)
-let cliente = "cliente1";
-
-// se tiver token no login, tenta extrair o cliente_id
-const token = localStorage.getItem("userToken");
-if (token) {
-    try {
-        const payload = JSON.parse(atob(token.split(".")[1]));
-        if (payload?.user_metadata?.cliente_id) {
-            cliente = payload.user_metadata.cliente_id;
-        }
-        
-        // Se é admin pela URL, NÃO zera o cliente - mantém para outras funções
-        // Apenas ajustamos o comportamento na função listarAgendamentos()
-        if (isAdminPath) {
-            console.log('👑 Modo admin detectado pela URL');
-            // cliente mantém o valor, mas a função listarAgendamentos vai tratar diferente
-        }
-    } catch (e) {
-        console.error("Erro ao decodificar token:", e);
-    }
-}
-        // Tornar global
-window.formatData = formatData;
+        function formatData(data){ const [y,m,d] = data.split("-"); return `${d}/${m}/${y}`; }
 
 
-
-
-// 🔄 VERIFICAR AUTENTICAÇÃO
-// 🔄 VERIFICAR AUTENTICAÇÃO (ADMIN)
-// 🔄 VERIFICAR AUTENTICAÇÃO (ADMIN)
-async function checkAuth() {
-    const token = localStorage.getItem('userToken');
-    
-    if (!token) {
-        console.log('❌ Nenhum token encontrado');
-        return false;
-    }
-
-    try {
-        // Testa o token atual
-        const response = await fetchWithAuth('/debug-token', {
-            method: 'POST',
-            body: JSON.stringify({ token })
+// ---------------- INICIALIZAÇÃO ----------------
+function init() {
+    // Configurar máscara de telefone
+    if (telefoneInput) {
+        telefoneMask = IMask(telefoneInput, {
+            mask: '(00) 00000-0000'
         });
-        
-        if (!response.ok) {
-            throw new Error('Token inválido');
-        }
-        
-        const result = await response.json();
-        console.log('✅ Usuário autenticado:', result.user?.email);
-        return true;
-        
-    } catch (error) {
-        console.error('❌ Erro de autenticação:', error);
-        // Não faz logout automático aqui - deixa a init() decidir
-        return false;
-    }
-}
-
-        
-// ✅ FUNÇÃO CORRIGIDA - SEM // DUPLO
-function corrigirUrl(url) {
-    // Remove qualquer barra dupla e /api/ existente
-    let urlLimpa = url.replace(/^\/+/, '').replace(/^api\//, '');
-    
-    // Retorna com /api/ no início
-    return `/api/${urlLimpa}`;
-}
-
-// ✅ FUNÇÃO fetchWithAuth ATUALIZADA
-async function fetchWithAuth(url, options = {}) {
-    const urlCorrigida = corrigirUrl(url);
-    console.log('🌐 API Call:', url, '→', urlCorrigida);
-    
-    let token = localStorage.getItem('userToken');
-    
-    const headers = {
-        'Content-Type': 'application/json',
-        ...options.headers,
-    };
-    
-    if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    try {
-        let response = await fetch(urlCorrigida, { ...options, headers });
-        
-        if (response.status === 401) {
-            console.log('🔄 Token expirado, tentando renovar...');
-            const refreshed = await refreshAuthToken();
-            
-            if (refreshed) {
-                token = localStorage.getItem('userToken');
-                headers['Authorization'] = `Bearer ${token}`;
-                response = await fetch(urlCorrigida, { ...options, headers });
-            } else {
-                logout();
-                throw new Error('Sessão expirada. Faça login novamente.');
-            }
-        }
-        
-        return response;
-        
-    } catch (error) {
-        console.error('❌ Erro no fetch:', error);
-        throw error;
-    }
-}
-
-// 🔄 RENOVAR TOKEN
-async function refreshAuthToken() {
-    try {
-        console.log('🔄 Tentando renovar token...');
-        const currentToken = localStorage.getItem('userToken');
-        
-        if (!currentToken) {
-            return false;
-        }
-
-        // Tenta renovar com o Supabase
-        const { data, error } = await supabase.auth.refreshSession();
-        
-        if (error) {
-            console.log('❌ Erro ao renovar token:', error.message);
-            return false;
-        }
-
-        if (data.session) {
-            localStorage.setItem('userToken', data.session.access_token);
-            console.log('✅ Token renovado com sucesso');
-            return true;
-        }
-        
-        return false;
-    } catch (error) {
-        console.error('❌ Erro no refresh:', error);
-        return false;
-    }
-}
-
-// 🔄 LOGOUT
-function logout() {
-    console.log('🚪 Fazendo logout...');
-    localStorage.removeItem('userToken');
-    localStorage.removeItem('userEmail');
-    localStorage.removeItem('userClienteId');
-    localStorage.removeItem('userIsAdmin');
-    window.location.href = 'login.html';
-}
-
-
-
-
-
-
-
-        
-  // ---------------- INICIALIZAÇÃO (CORRIGIDA) ----------------
-async function init() {
-    console.log('🚀 Inicializando sistema admin...');
-    
-    try {
-        const isAuthenticated = await checkAuth();
-        
-        if (isAuthenticated) {
-            // Usuário autenticado - mostrar conteúdo
-            userToken = localStorage.getItem('userToken');
-            loginSection.style.display = 'none';
-            logoutBtn.style.display = 'flex';
-            configSection.style.display = 'block';
-            calendarSection.style.display = 'block';
-            
-            // ✅ CORREÇÃO: EXIBIR TODAS AS SEÇÕES QUANDO AUTENTICADO
-            document.getElementById('filtersSection').style.display = 'block';
-            document.getElementById('diasTabs').style.display = 'block';
-            meusAgendamentos.style.display = 'block';
-            
-            await carregarConfiguracoes().catch(err => {
-                console.error('Erro ao carregar configurações:', err);
-            });
-            
-            await listarAgendamentos().catch(err => {
-                console.error('Erro ao carregar agendamentos:', err);
-            });
-            
-            gerarCalendario();
-            
-            // ✅ CORREÇÃO: INICIALIZAR TABS NA INICIALIZAÇÃO
-            initTabsDias();
-            
-            console.log('✅ Sistema admin inicializado com sucesso');
-        } else {
-            // Usuário não autenticado - mostrar login
-            loginSection.style.display = 'block';
-            logoutBtn.style.display = 'none';
-            configSection.style.display = 'none';
-            calendarSection.style.display = 'none';
-            
-            // ✅ CORREÇÃO: OCULTAR TABS QUANDO NÃO AUTENTICADO
-            document.getElementById('filtersSection').style.display = 'none';
-            document.getElementById('diasTabs').style.display = 'none';
-            meusAgendamentos.style.display = 'none';
-            
-            console.log('🔒 Aguardando autenticação...');
-        }
-    } catch (error) {
-        console.error('❌ Erro crítico na inicialização:', error);
-        // Fallback: mostrar tela de login
-        loginSection.style.display = 'block';
-        logoutBtn.style.display = 'none';
-        configSection.style.display = 'none';
-        calendarSection.style.display = 'none';
-        document.getElementById('filtersSection').style.display = 'none';
-        document.getElementById('diasTabs').style.display = 'none';
-        meusAgendamentos.style.display = 'none';
     }
     
-    adicionarEventListeners();
-}
-// 🔍 DEBUG: Verificar estado do login
-function debugAuthState() {
-    console.log('🔐 ESTADO DA AUTENTICAÇÃO:');
-    console.log('Token:', localStorage.getItem('userToken') ? 'EXISTE' : 'NÃO EXISTE');
-    console.log('Email:', localStorage.getItem('userEmail'));
-    console.log('Cliente ID:', localStorage.getItem('userClienteId'));
-    console.log('Is Admin:', localStorage.getItem('userIsAdmin'));
+    // Permitir selecionar a partir de hoje (incluindo hoje)
+    const hoje = new Date();
+    const ontem = new Date(hoje);
+    ontem.setDate(ontem.getDate() - 1); // Data de ontem
     
-    // Testar token atual
+    if (dataInput) {
+        dataInput.min = ontem.toISOString().split('T')[0]; // Permite desde ontem
+    }
+    
+    // Verificar se já está logado
     const token = localStorage.getItem('userToken');
     if (token) {
-        try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            console.log('Token payload:', {
-                email: payload.email,
-                exp: new Date(payload.exp * 1000),
-                expirado: Date.now() >= payload.exp * 1000
-            });
-        } catch (e) {
-            console.error('Erro ao decodificar token:', e);
-        }
+        userToken = token;
+        loginSection.style.display = 'none';
+        form.style.display = 'block';
+        logoutBtn.style.display = 'flex';
+        listarAgendamentos();
     }
 }
-
-
-        
-// ====== INICIALIZAR AO CARREGAR A PÁGINA ======
-document.addEventListener('DOMContentLoaded', function() {
-    init();
-});
-        
         // ---------------- TOASTS ----------------
         let activeToasts = [];
-        
         function showToast(message, type = "success") {
             const colors = {
                 success: "bg-gradient-to-r from-green-500 to-teal-400",
@@ -559,7 +414,6 @@ document.addEventListener('DOMContentLoaded', function() {
             };
             
             const container = document.getElementById("toast-container");
-            
             if (activeToasts.length >= 3) {
                 const oldest = activeToasts.shift();
                 oldest.remove();
@@ -568,342 +422,141 @@ document.addEventListener('DOMContentLoaded', function() {
             const toast = document.createElement("div");
             toast.className = `p-4 rounded-lg shadow-lg text-white font-medium ${colors[type] || colors.info} opacity-0 translate-x-5 transition-all duration-300 flex items-center gap-2`;
             toast.innerHTML = `<i data-feather="${type==="success"?"check-circle":type==="error"?"alert-circle":"info"}" class="w-5 h-5"></i> <span>${message}</span>`;
-            
             container.appendChild(toast);
             activeToasts.push(toast);
             feather.replace();
             
             requestAnimationFrame(()=>{
-                toast.classList.remove("opacity-0","translate-x-5");
+                toast.classList.remove("opacity-0","translate-x-5"); 
                 toast.classList.add("opacity-100","translate-x-0");
             });
             
             setTimeout(()=>{
-                toast.classList.add("opacity-0","translate-x-5");
+                toast.classList.add("opacity-0","translate-x-5"); 
                 setTimeout(()=>{
-                    toast.remove();
+                    toast.remove(); 
                     activeToasts=activeToasts.filter(t=>t!==toast);
                 },300);
             },3000);
         }
-        
-        // ---------------- CARREGAR CONFIGURAÇÕES (CORRIGIDA) ----------------
-async function carregarConfiguracoes() {
-    try {
-        console.log('📡 Carregando configurações...');
-        
-        // ✅ CORREÇÃO: Obter clienteId de forma segura
-        const userClienteId = localStorage.getItem('userClienteId');
-        const clienteId = userClienteId || 'cliente1'; // Fallback seguro
-        
-        console.log('🔧 Usando Cliente ID:', clienteId);
-        
-        const response = await fetchWithAuth(`/api/admin/config/${clienteId}`);
-        
-        if (!response.ok) {
-            // Se for erro 403 (acesso negado), pode ser porque é admin tentando acessar cliente específico
-            if (response.status === 403) {
-                console.log('⚠️ Admin tentando acessar config específica, buscando config geral...');
-                // Como admin, pode buscar configurações de algum cliente padrão ou não carregar
-                showToast('Admin - Use a interface de configurações específicas', 'info');
-                return;
-            }
-            throw new Error(`Erro HTTP: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        console.log('✅ Configurações carregadas:', data);
-        
-        // ✅ CORREÇÃO: Verificar se elementos existem antes de preencher
-        if (document.getElementById('diasSemana')) {
-            document.getElementById('diasSemana').value = data.dias_semana?.join(',') || '';
-        }
-        if (document.getElementById('horariosDisponiveis')) {
-            document.getElementById('horariosDisponiveis').value = data.horarios_disponiveis?.join(',') || '';
-        }
-        if (document.getElementById('intervaloMinutos')) {
-            document.getElementById('intervaloMinutos').value = data.intervalo_minutos || 60;
-        }
-        if (document.getElementById('maxAgendamentos')) {
-            document.getElementById('maxAgendamentos').value = data.max_agendamentos_dia || 10;
-        }
-        if (document.getElementById('datasBloqueadas')) {
-            document.getElementById('datasBloqueadas').value = data.datas_bloqueadas?.join(',') || '';
-        }
-        
-    } catch (error) {
-        console.error('❌ Erro ao carregar configurações:', error);
-        showToast('Erro ao carregar configurações: ' + error.message, 'error');
-    }
-}
-        
-        // ---------------- CALENDÁRIO ----------------
-        function gerarCalendario() {
-            const calendar = document.getElementById('calendar');
-            const hoje = new Date();
-            const mes = hoje.getMonth();
-            const ano = hoje.getFullYear();
-            
-            const primeiroDia = new Date(ano, mes, 1);
-            const ultimoDia = new Date(ano, mes + 1, 0);
-            
-            let html = `
-                <div class="flex justify-between items-center mb-4">
-                    <h4 class="font-semibold">${primeiroDia.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</h4>
-                </div>
-                <div class="grid grid-cols-7 gap-1 text-center">
-                    <div class="p-2 text-sm text-gray-400">Dom</div>
-                    <div class="p-2 text-sm text-gray-400">Seg</div>
-                    <div class="p-2 text-sm text-gray-400">Ter</div>
-                    <div class="p-2 text-sm text-gray-400">Qua</div>
-                    <div class="p-2 text-sm text-gray-400">Qui</div>
-                    <div class="p-2 text-sm text-gray-400">Sex</div>
-                    <div class="p-2 text-sm text-gray-400">Sáb</div>
-            `;
-            
-            // Dias vazios no início
-            for (let i = 0; i < primeiroDia.getDay(); i++) {
-                html += '<div class="p-2"></div>';
-            }
-            
-            // Dias do mês
-            for (let dia = 1; dia <= ultimoDia.getDate(); dia++) {
-                const dataCompleta = `${ano}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
-                const classeDia = `calendar-day p-2 rounded cursor-pointer hover:bg-white/10 `;
-                const isBloqueada = configHorarios?.datas_bloqueadas.includes(dataCompleta);
-                
-                html += `
-                    <div class="${classeDia} ${isBloqueada ? 'blocked' : ''}" onclick="selecionarData('${dataCompleta}')">
-                        ${dia}
+
+        // ---------------- RENDER AGENDAMENTOS ----------------
+        function renderAgendamentos() {
+            const filtroNome = searchInput.value.toLowerCase();
+            const filtroStatus = statusFilter.value;
+
+            const filtrados = agendamentosCache
+                .filter(a => ((a.nome + a.email).toLowerCase().includes(filtroNome)) &&
+                            (filtroStatus ? a.status === filtroStatus : true))
+                .filter(a => {
+                    const dataAgendamento = new Date(`${a.data}T${a.horario}`);
+                    const hoje = new Date();
+                    
+                    if(diaSelecionado >= 1 && diaSelecionado <= 6) {
+                        return dataAgendamento.getDay() === diaSelecionado && 
+                               dataAgendamento >= new Date(hoje.setHours(0,0,0,0));
+                    } else {
+                        const semanas = -diaSelecionado;
+                        const dataLimite = new Date();
+                        dataLimite.setDate(dataLimite.getDate() + semanas * 7);
+                        return dataAgendamento >= new Date(dataLimite.setHours(0,0,0,0)) && 
+                               dataAgendamento < new Date(hoje.setHours(0,0,0,0));
+                    }
+                })
+                .sort((a,b) => {
+                    const dateA = new Date(`${a.data}T${a.horario}`);
+                    const dateB = new Date(`${b.data}T${b.horario}`);
+                    return dateA - dateB;
+                });
+
+            if (filtrados.length === 0) {
+                meusAgendamentos.innerHTML = `
+                    <div class='text-center py-8'>
+                        <div class="p-4 rounded-full bg-white/10 inline-block mb-4">
+                            <i data-feather="calendar" class="w-8 h-8 text-gray-300"></i>
+                        </div>
+                        <p class="text-gray-300">Nenhum agendamento encontrado</p>
                     </div>
                 `;
+                feather.replace();
+                return;
             }
-            
-            html += '</div>';
-            calendar.innerHTML = html;
-        }
-        
-        async function selecionarData(data) {
-            dataSelecionadaCalendario = data;
-            document.getElementById('dataSelecionada').value = data;
-            document.getElementById('dataSelecionadaTexto').textContent = formatData(data);
-            document.getElementById('configDataEspecifica').style.display = 'block';
-            
-            // Carregar configuração específica da data
-            try {
-                const response = await fetchWithAuth(`/admin/config/${cliente}/datas?data=${data}&endDate=${data}`, {
-                    headers: {
-                        "Authorization": `Bearer ${userToken}`
-                    }
-                });
+
+            meusAgendamentos.innerHTML = "";
+
+            filtrados.forEach(a => {
+                const div = document.createElement("div");
+                div.className = `agendamento-card glass-card rounded-xl p-5 mb-4 transition-all duration-300 ${a.status}`;
                 
-                if (response.ok) {
-                    const { configs } = await response.json();
-                    const configData = configs[0];
-                    
-                    if (configData) {
-                        document.getElementById('dataBloqueadaCheck').checked = configData.bloqueada;
-                        document.getElementById('maxAgendamentosData').value = configData.max_agendamentos || '';
-                        
-                        // Horários específicos
-                        const horariosContainer = document.getElementById('horariosEspecificos');
-                        horariosContainer.innerHTML = '';
-                        
-                        if (configData.horarios_disponiveis) {
-                            configData.horarios_disponiveis.forEach(horario => {
-                                const div = document.createElement('div');
-                                div.className = 'flex justify-between items-center p-1 bg-white/5 rounded';
-                                div.innerHTML = `
-                                    <span>${horario}</span>
-                                    <button class="text-red-400 hover:text-red-300" onclick="removerHorarioEspecifico('${horario}')">
-                                        <i data-feather="x" class="w-3 h-3"></i>
-                                    </button>
-                                `;
-                                horariosContainer.appendChild(div);
-                            });
-                        }
-                    } else {
-                        // Reset para valores padrão
-                        document.getElementById('dataBloqueadaCheck').checked = false;
-                        document.getElementById('maxAgendamentosData').value = '';
-                        document.getElementById('horariosEspecificos').innerHTML = '';
-                    }
-                    
-                    feather.replace();
+                div.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <div class="flex items-center gap-2">
+                            <i data-feather="clock" class="w-4 h-4 text-gray-300"></i>
+                            <span class="font-medium">${a.horario}</span>
+                        </div>
+                        <span class="text-sm px-2 py-1 rounded-full ${a.status === 'confirmado' ? 'bg-green-900/30 text-green-300' : a.status === 'pendente' ? 'bg-yellow-900/30 text-yellow-300' : 'bg-red-900/30 text-red-300'}">
+                            ${a.status}
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-3 mb-3">
+                        <div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
+                            <i data-feather="user" class="w-4 h-4 text-gray-300"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-medium">${a.nome}</h3>
+                            <p class="text-sm text-gray-300">${formatData(a.data)}</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <div class="flex items-center gap-2">
+                            <i data-feather="mail" class="w-4 h-4 text-gray-300"></i>
+                            <span class="truncate">${a.email}</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <i data-feather="phone" class="w-4 h-4 text-gray-300"></i>
+                            <span>${a.telefone}</span>
+                        </div>
+                    </div>
+                `;
+
+                const btnContainer = document.createElement("div");
+                btnContainer.className = "flex gap-2 mt-4 flex-wrap";
+
+                // Confirmar
+                if (a.status !== "confirmado") {
+                    const btnConfirmar = document.createElement("button");
+                    btnConfirmar.innerHTML = `<i data-feather="check" class="w-4 h-4"></i> Confirmar`;
+                    btnConfirmar.className = "px-3 py-1.5 text-sm rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 text-white flex items-center gap-1 shadow-md hover:opacity-90 transition-all";
+                    btnConfirmar.addEventListener("click", () => confirmarAgendamento(a.cliente, a.id));
+                    btnContainer.appendChild(btnConfirmar);
                 }
-            } catch (error) {
-                console.error('Erro ao carregar configuração da data:', error);
-            }
+
+                // Cancelar
+                const btnCancelar = document.createElement("button");
+                btnCancelar.innerHTML = `<i data-feather="x" class="w-4 h-4"></i> Cancelar`;
+                btnCancelar.className = "px-3 py-1.5 text-sm rounded-lg bg-gradient-to-r from-red-500 to-rose-600 text-white flex items-center gap-1 shadow-md hover:opacity-90 transition-all";
+                btnCancelar.addEventListener("click", () => cancelarAgendamento(a.cliente, a.id));
+                btnContainer.appendChild(btnCancelar);
+
+                // Reagendar
+                const btnReagendar = document.createElement("button");
+                btnReagendar.innerHTML = `<i data-feather="refresh-cw" class="w-4 h-4"></i> Reagendar`;
+                btnReagendar.className = "px-3 py-1.5 text-sm rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 text-white flex items-center gap-1 shadow-md hover:opacity-90 transition-all";
+                btnReagendar.addEventListener("click", () => abrirModalReagendar(a));
+                btnContainer.appendChild(btnReagendar);
+
+                div.appendChild(btnContainer);
+                meusAgendamentos.appendChild(div);
+            });
+
+            feather.replace();
+            checkFreeLimit();
         }
 
-
-        
-      function renderAgendamentos() {
-    console.log('🔍 Renderizando agendamentos, cache:', agendamentosCache);
-    console.log('📅 Dia selecionado:', diaSelecionado);
-    console.log('📊 Total no cache:', agendamentosCache.length);
-    const filtroNome = searchInput.value.toLowerCase();
-    const filtroStatus = statusFilter.value;
-    
-    const filtrados = agendamentosCache
-        .filter(a => {
-            // Filtro por nome/email
-            const nomeEmail = (a.nome + ' ' + (a.email || '')).toLowerCase();
-            const passaFiltroNome = nomeEmail.includes(filtroNome);
-            
-            // Filtro por status
-            const passaFiltroStatus = filtroStatus ? a.status === filtroStatus : true;
-            
-            return passaFiltroNome && passaFiltroStatus;
-        })
-        // SUBSTITUIR o trecho problemático do filtro por:
-.filter(a => {
-    if (!a.data || !a.horario) {
-        console.log('❌ Agendamento sem data/horário:', a);
-        return false;
-    }
-    
-    try {
-        // CORREÇÃO: Criar data de forma segura
-        const [ano, mes, dia] = a.data.split('-');
-        const [hora, minuto] = a.horario.split(':');
-        const dataAgendamento = new Date(ano, mes - 1, dia, hora, minuto);
-        
-        // CORREÇÃO: Data de hoje sem fuso horário
-        const hoje = new Date();
-        const hojeUTC = new Date(Date.UTC(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()));
-        
-        if (isNaN(dataAgendamento.getTime())) {
-            console.log('❌ Data inválida:', a.data, a.horario);
-            return false;
-        }
-        
-        // CORREÇÃO: Filtro por dia da semana (0-6)
-        if (diaSelecionado >= 0 && diaSelecionado <= 6) {
-            return dataAgendamento.getDay() === diaSelecionado;
-        } 
-        // CORREÇÃO: Filtro por semanas
-        else {
-            const semanas = diaSelecionado;
-            const diffDias = Math.floor((dataAgendamento - hojeUTC) / (1000 * 60 * 60 * 24));
-            const diffSemanas = Math.floor(diffDias / 7);
-            
-            return diffSemanas === semanas;
-        }
-        
-    } catch (error) {
-        console.log('❌ Erro ao processar data:', error, a);
-        return false;
-    }
-})
-    
-    console.log('✅ Agendamentos filtrados:', filtrados);
-    console.log('📅 Dia selecionado:', diaSelecionado);
-    
-    // DEBUG: Mostrar detalhes do primeiro agendamento
-    if (filtrados.length > 0) {
-        console.log('🔍 Detalhes do primeiro agendamento:', filtrados[0]);
-        console.log('📅 Data do agendamento:', filtrados[0].data);
-        console.log('⏰ Horário do agendamento:', filtrados[0].horario);
-        console.log('📆 Dia da semana:', new Date(`${filtrados[0].data}T${filtrados[0].horario}`).getDay());
-    }
-    
-    if (filtrados.length === 0) {
-        meusAgendamentos.innerHTML = `
-            <div class='text-center py-8'>
-                <div class="p-4 rounded-full bg-white/10 inline-block mb-4">
-                    <i data-feather="calendar" class="w-8 h-8 text-gray-300"></i>
-                </div>
-                <p class="text-gray-300">Nenhum agendamento encontrado</p>
-                <p class="text-sm text-gray-400 mt-2">Total no cache: ${agendamentosCache.length}</p>
-                <p class="text-sm text-gray-400">Filtro aplicado: ${filtroStatus || 'Todos'}</p>
-                <p class="text-sm text-gray-400">Dia selecionado: ${diaSelecionado}</p>
-                <button onclick="console.log('Agendamentos cache:', agendamentosCache)" class="mt-4 px-4 py-2 bg-blue-600 rounded">
-                    Debug no Console
-                </button>
-            </div>
-        `;
-        feather.replace();
-        return;
-    }
-    
-    meusAgendamentos.innerHTML = "";
-    
-    filtrados.forEach(a => {
-        const div = document.createElement("div");
-        div.className = `agendamento-card glass-card rounded-xl p-5 mb-4 transition-all duration-300 ${a.status}`;
-        
-        div.innerHTML = `
-            <div class="flex justify-between items-start mb-2">
-                <div class="flex items-center gap-2">
-                    <i data-feather="clock" class="w-4 h-4 text-gray-300"></i>
-                    <span class="font-medium">${a.horario}</span>
-                </div>
-                <span class="text-sm px-2 py-1 rounded-full ${a.status === 'confirmado' ? 'bg-green-900/30 text-green-300' : a.status === 'pendente' ? 'bg-yellow-900/30 text-yellow-300' : 'bg-red-900/30 text-red-300'}">
-                    ${a.status}
-                </span>
-            </div>
-            
-            <div class="flex items-center gap-3 mb-3">
-                <div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-                    <i data-feather="user" class="w-4 h-4 text-gray-300"></i>
-                </div>
-                <div>
-                    <h3 class="font-medium">${a.nome}</h3>
-                    <p class="text-sm text-gray-300">${formatData(a.data)}</p>
-                </div>
-            </div>
-            
-            <div class="grid grid-cols-2 gap-2 text-sm">
-                <div class="flex items-center gap-2">
-                    <i data-feather="mail" class="w-4 h-4 text-gray-300"></i>
-                    <span class="truncate">${a.email || 'Não informado'}</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <i data-feather="phone" class="w-4 h-4 text-gray-300"></i>
-                    <span>${a.telefone || 'Não informado'}</span>
-                </div>
-            </div>
-        `;
-        
-        const btnContainer = document.createElement("div");
-        btnContainer.className = "flex gap-2 mt-4 flex-wrap";
-        
-        // Confirmar
-        if (a.status !== "confirmado") {
-            const btnConfirmar = document.createElement("button");
-            btnConfirmar.innerHTML = `<i data-feather="check" class="w-4 h-4"></i> Confirmar`;
-            btnConfirmar.className = "px-3 py-1.5 text-sm rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 text-white flex items-center gap-1 shadow-md hover:opacity-90 transition-all";
-            btnConfirmar.addEventListener("click", () => confirmarAgendamento(a.cliente, a.id));
-            btnContainer.appendChild(btnConfirmar);
-        }
-        
-        // Cancelar
-        const btnCancelar = document.createElement("button");
-        btnCancelar.innerHTML = `<i data-feather="x" class="w-4 h-4"></i> Cancelar`;
-        btnCancelar.className = "px-3 py-1.5 text-sm rounded-lg bg-gradient-to-r from-red-500 to-rose-600 text-white flex items-center gap-1 shadow-md hover:opacity-90 transition-all";
-        btnCancelar.addEventListener("click", () => cancelarAgendamento(a.cliente, a.id));
-        btnContainer.appendChild(btnCancelar);
-        
-        // Reagendar
-        const btnReagendar = document.createElement("button");
-        btnReagendar.innerHTML = `<i data-feather="refresh-cw" class="w-4 h-4"></i> Reagendar`;
-        btnReagendar.className = "px-3 py-1.5 text-sm rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 text-white flex items-center gap-1 shadow-md hover:opacity-90 transition-all";
-        btnReagendar.addEventListener("click", () => abrirModalReagendar(a));
-        btnContainer.appendChild(btnReagendar);
-        
-        div.appendChild(btnContainer);
-        meusAgendamentos.appendChild(div);
-    });
-    
-    feather.replace();
-    console.log('✅ Renderização concluída - elementos criados');
-}
-        
         // ---------------- MODAL REAGENDAR ----------------
         function abrirModalReagendar(agendamento) {
             let modal = document.getElementById("modalReagendar");
-            
+
             if (!modal) {
                 modal = document.createElement("div");
                 modal.id = "modalReagendar";
@@ -930,10 +583,9 @@ async function carregarConfiguracoes() {
                         </div>
                     </div>
                 `;
-                
                 document.body.appendChild(modal);
                 feather.replace();
-                
+
                 // Evento de fechar
                 modal.querySelector("#fecharModal").addEventListener("click", () => {
                     modal.classList.add("hidden");
@@ -943,186 +595,185 @@ async function carregarConfiguracoes() {
                     modal.classList.add("hidden");
                 });
             }
-            
+
             // Preenche valores atuais e define data mínima como hoje
             modal.querySelector("#novaData").value = agendamento.data;
             modal.querySelector("#novoHorario").value = agendamento.horario;
-            
+
             // Remove qualquer evento antigo para evitar duplicação
             const confirmarBtn = modal.querySelector("#confirmarReagendar");
             const novoConfirmarBtn = confirmarBtn.cloneNode(true);
             confirmarBtn.parentNode.replaceChild(novoConfirmarBtn, confirmarBtn);
-            
+
             novoConfirmarBtn.addEventListener("click", () => {
                 const novaData = modal.querySelector("#novaData").value;
                 const novoHorario = modal.querySelector("#novoHorario").value;
-                
+
                 if (!novaData || !novoHorario) {
                     showToast("Preencha data e horário corretamente!", "warning");
                     return;
                 }
-                
+
+
                 reagendarAgendamento(agendamento.cliente, agendamento.id, novaData, novoHorario);
                 modal.classList.add("hidden");
             });
-            
+
             // Mostra modal
             modal.classList.remove("hidden");
         }
-        
-     // ---------------- LISTAR AGENDAMENTOS ----------------
-async function listarAgendamentos() {
-    try {
-        const isAdmin = localStorage.getItem('userIsAdmin') === 'true';
-        console.log('👑 Modo admin:', isAdmin);
-        
-        let url = '/api/agendamentos';
-        
-        
-        // Se não for admin, busca apenas do próprio cliente
-        if (!isAdmin) {
-            const clienteId = localStorage.getItem('userClienteId');
-            if (clienteId) {
-                url = `/api/agendamentos/${clienteId}`;
+
+        // ---------------- LISTAR AGENDAMENTOS ----------------
+        async function listarAgendamentos(){
+            if(!userToken) return;
+            try{
+                const res = await fetch(`/api/agendamentos/${cliente}`, {
+                    headers: { "Authorization": `Bearer ${userToken}` }
+                });
+                const { agendamentos } = await res.json();
+                agendamentosCache = agendamentos;
+                meusAgendamentos.style.display = 'block';
+                document.getElementById('filtersSection').style.display = 'block';
+                document.getElementById('diasTabs').style.display = 'flex';
+                initTabsDias();
+                renderAgendamentos(); 
+                checkFreeLimit();
+            } catch(e){
+                console.error(e);
+                showToast("Erro ao listar agendamentos","error");
             }
         }
-        
-        console.log('🔍 Buscando agendamentos na URL:', url);
-        
-        const response = await fetchWithAuth(url);
-        
-        if (!response.ok) {
-            throw new Error(`Erro HTTP: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        console.log('✅ Agendamentos carregados:', data.agendamentos?.length || 0);
-        
-       agendamentosCache = data.agendamentos || [];
-renderAgendamentos();
-        
-    } catch (error) {
-        console.error('❌ Erro ao carregar agendamentos:', error);
-        showToast('Erro ao carregar agendamentos', 'error');
-    }
-}
-      // ---------------- LOGIN ----------------
-loginBtn.addEventListener('click', async () => {
-    const email = document.getElementById('email').value;
-    const senha = document.getElementById('senha').value;
-    
-    if(!email || !senha) {
-        showToast("Preencha email e senha", "warning");
-        return;
-    }
-    
-    try {
-        loginText.classList.add('hidden');
-        loginSpinner.classList.remove('hidden');
-        loginBtn.disabled = true;
-        
-        const { data, error } = await supabase.auth.signInWithPassword({
-            email,
-            password: senha
+
+        // ---------------- LOGIN ----------------
+        loginBtn.addEventListener('click', async () => {
+            const email = document.getElementById('email').value;
+            const senha = document.getElementById('senha').value;
+            if(!email || !senha) {
+                showToast("Preencha email e senha", "warning");
+                return;
+            }
+            
+            try {
+                // Mostrar loading
+                loginText.classList.add('hidden');
+                loginSpinner.classList.remove('hidden');
+                loginBtn.disabled = true;
+                
+                const { data, error } = await supabase.auth.signInWithPassword({ email, password: senha });
+                if(error){ 
+                    showToast(error.message,"error"); 
+                    // Esconder loading
+                    loginText.classList.remove('hidden');
+                    loginSpinner.classList.add('hidden');
+                    loginBtn.disabled = false;
+                    return; 
+                }
+
+                userToken = data.session.access_token;
+                // Salvar token no localStorage
+                localStorage.setItem('userToken', userToken);
+                
+                loginSection.style.display = 'none';
+                form.style.display = 'block';
+                logoutBtn.style.display = 'flex';
+
+                listarAgendamentos().then(() => {
+                    // Seleciona o dia atual
+                    let hoje = new Date().getDay();
+                    if (hoje === 0) {
+                        hoje = 1;
+                    }
+
+                    const btnHoje = document.querySelector(`.tab-dia[data-dia="${hoje}"]`);
+                    if (btnHoje) {
+                        btnHoje.click();
+                    } else {
+                        document.querySelector(`.tab-dia[data-dia="1"]`)?.click();
+                    }
+                });
+
+                showToast("Login realizado com sucesso!", "success");
+
+                // Esconder loading
+                loginText.classList.remove('hidden');
+                loginSpinner.classList.add('hidden');
+                loginBtn.disabled = false;
+
+            } catch(e) {
+                console.error(e);
+                showToast("Erro ao fazer login", "error");
+                // Esconder loading
+                loginText.classList.remove('hidden');
+                loginSpinner.classList.add('hidden');
+                loginBtn.disabled = false;
+            }
         });
-        
-        if(error){
-            showToast(error.message,"error");
-            loginText.classList.remove('hidden');
-            loginSpinner.classList.add('hidden');
-            loginBtn.disabled = false;
-            return;
-        }
-        
-        // ✅ SALVAR TODAS AS INFORMAÇÕES DO USUÁRIO
-        userToken = data.session.access_token;
-        localStorage.setItem('userToken', userToken);
-        localStorage.setItem('userEmail', data.user.email);
-        localStorage.setItem('userClienteId', data.user.user_metadata?.cliente_id);
-        localStorage.setItem('userIsAdmin', data.user.user_metadata?.isAdmin || data.user.user_metadata?.role === 'admin');
-        
-        // ✅ LOG DETALHADO PARA DEBUG
-        console.log('🔐 Login realizado:', {
-            email: data.user.email,
-            clienteId: data.user.user_metadata?.cliente_id,
-            isAdmin: data.user.user_metadata?.isAdmin,
-            role: data.user.user_metadata?.role
+
+        // ---------------- LOGOUT ----------------
+        logoutBtn.addEventListener('click', () => {
+            userToken = null;
+            localStorage.removeItem('userToken');
+            loginSection.style.display = 'block';
+            form.style.display = 'none';
+            meusAgendamentos.style.display = 'none';
+            document.getElementById('filtersSection').style.display = 'none';
+            document.getElementById('diasTabs').style.display = 'none';
+            logoutBtn.style.display = 'none';
+            agendamentosCache = [];
+            
+            showToast("Logout realizado com sucesso", "info");
         });
-        
-        // ✅ ATUALIZAR A INTERFACE (CORREÇÃO: EXIBIR TODAS AS SEÇÕES)
-        loginSection.style.display = 'none';
-        logoutBtn.style.display = 'flex';
-        configSection.style.display = 'block';
-        calendarSection.style.display = 'block';
-        
-        // ✅ CORREÇÃO: EXIBIR AS TABS E SEÇÕES DE AGENDAMENTOS
-        document.getElementById('filtersSection').style.display = 'block';
-        document.getElementById('diasTabs').style.display = 'block';
-        meusAgendamentos.style.display = 'block';
-        
-        // ✅ CARREGAR DADOS (AGORA COM fetchWithAuth)
-        await carregarConfiguracoes();
-        await listarAgendamentos();
-        gerarCalendario();
-        
-        // ✅ CORREÇÃO: INICIALIZAR AS TABS APÓS LOGIN
-        initTabsDias();
-        
-        showToast("Login realizado com sucesso!", "success");
-        
-    } catch(e) {
-        console.error("❌ Erro no login:", e);
-        showToast("Erro ao fazer login", "error");
-    } finally {
-        loginText.classList.remove('hidden');
-        loginSpinner.classList.add('hidden');
-        loginBtn.disabled = false;
-    }
-});
-        
-       // ---------------- LOGOUT ----------------
-logoutBtn.addEventListener('click', async () => {
-    try {
-        // ✅ FAZER LOGOUT NO SUPABASE
-        await supabase.auth.signOut();
-        
-        // ✅ LIMPAR TODOS OS DADOS DO LOCALSTORAGE
-        localStorage.removeItem('userToken');
-        localStorage.removeItem('userEmail');
-        localStorage.removeItem('userClienteId');
-        localStorage.removeItem('userIsAdmin');
-        
-        // ✅ LIMPAR VARIÁVEL GLOBAL
-        userToken = null;
-        
-        // ✅ LOG PARA DEBUG
-        console.log('🚪 Logout realizado - localStorage limpo');
-        
-        // ✅ ATUALIZAR INTERFACE (sua versão está ótima!)
-        loginSection.style.display = 'block';
-        logoutBtn.style.display = 'none';
-        configSection.style.display = 'none';
-        calendarSection.style.display = 'none';
-        meusAgendamentos.style.display = 'none';
-        document.getElementById('filtersSection').style.display = 'none';
-        document.getElementById('diasTabs').style.display = 'none';
-        
-        // ✅ OPCIONAL: Limpar formulário de login
-        document.getElementById('email').value = '';
-        document.getElementById('senha').value = '';
-        
-        showToast("Logout realizado com sucesso!", "success");
-        
-    } catch (e) {
-        console.error("❌ Erro no logout:", e);
-        showToast("Erro ao fazer logout", "error");
-    }
-});
-        
+
+        // ---------------- AGENDAR ----------------
+        form.addEventListener('submit', async (e)=>{
+            e.preventDefault();
+            const formData=new FormData(form);
+            const dataToSend={};
+            formData.forEach((v,k)=>dataToSend[k]=v);
+
+            // Verifica campos obrigatórios
+            if(!dataToSend.Nome || !dataToSend.Email || !dataToSend.Telefone || !dataToSend.Data || !dataToSend.Horario) {
+                showToast("Preencha todos os campos", "warning");
+                return;
+            }
+
+   
+
+            // Mostrar loading
+            agendarText.classList.add('hidden');
+            agendarSpinner.classList.remove('hidden');
+            form.querySelector('button[type="submit"]').disabled = true;
+     
+            try{
+                const response=await fetch(`/api/agendar/${cliente}`,{
+                    method:'POST',
+                    headers:{'Content-Type':'application/json',"Authorization":`Bearer ${userToken}`},
+                    body:JSON.stringify(dataToSend)
+                });
+                
+                if(response.ok){ 
+                    showToast("Agendado com sucesso!","success"); 
+                    form.reset(); 
+                    listarAgendamentos(); 
+                } else {
+                    const errorData = await response.json();
+                    showToast(errorData.message || "Não foi possível agendar, horário ocupado!", "error");
+                }
+            } catch(err){ 
+                console.error(err); 
+                showToast("Erro ao enviar agendamento","error"); 
+            } finally {
+                // Esconder loading
+                agendarText.classList.remove('hidden');
+                agendarSpinner.classList.add('hidden');
+                form.querySelector('button[type="submit"]').disabled = false;
+            }
+        });
+
         // ---------------- FILTROS ----------------
         searchInput.addEventListener("input", renderAgendamentos);
         statusFilter.addEventListener("change", renderAgendamentos);
-        
+
         // ---------------- TABS ----------------
         function initTabsDias(){
             const tabsDia=document.querySelectorAll(".tab-dia");
@@ -1132,23 +783,20 @@ logoutBtn.addEventListener('click', async () => {
                 btn.addEventListener("click",()=>{
                     tabsDia.forEach(b=>b.classList.remove("bg-gradient-to-r", "from-indigo-500", "to-cyan-500", "active"));
                     tabsDia.forEach(b=>b.classList.add("bg-white/10", "hover:bg-white/20"));
-                    
                     tabsSemana.forEach(b=>b.classList.remove("bg-gradient-to-r", "from-indigo-500", "to-cyan-500", "active"));
                     tabsSemana.forEach(b=>b.classList.add("bg-white/5", "hover:bg-white/10"));
                     
                     btn.classList.remove("bg-white/10", "hover:bg-white/20");
                     btn.classList.add("bg-gradient-to-r", "from-indigo-500", "to-cyan-500", "active");
-                    
                     diaSelecionado=parseInt(btn.dataset.dia);
                     renderAgendamentos();
                 });
             });
-            
+
             tabsSemana.forEach(btn=>{
                 btn.addEventListener("click",()=>{
                     tabsDia.forEach(b=>b.classList.remove("bg-gradient-to-r", "from-indigo-500", "to-cyan-500", "active"));
                     tabsDia.forEach(b=>b.classList.add("bg-white/10", "hover:bg-white/20"));
-                    
                     tabsSemana.forEach(b=>b.classList.remove("bg-gradient-to-r", "from-indigo-500", "to-cyan-500", "active"));
                     tabsSemana.forEach(b=>b.classList.add("bg-white/5", "hover:bg-white/10"));
                     
@@ -1158,16 +806,15 @@ logoutBtn.addEventListener('click', async () => {
                     const semanas = parseInt(btn.dataset.semana);
                     const dataLimite = new Date();
                     dataLimite.setDate(dataLimite.getDate() + semanas * 7);
-                    diaSelecionado = semanas;
+                    diaSelecionado = semanas; // Usar o valor numérico diretamente para semanas
                     renderAgendamentos();
                 });
             });
         }
-        
+
         // ---------------- EXPORT ----------------
         exportCSVBtn.addEventListener("click", ()=>{
             const filtrados = agendamentosCache.filter(a=>statusFilter.value?a.status===statusFilter.value:true);
-            
             if(filtrados.length === 0) {
                 showToast("Nenhum agendamento para exportar", "warning");
                 return;
@@ -1175,27 +822,25 @@ logoutBtn.addEventListener('click', async () => {
             
             let csv="Nome,Email,Telefone,Data,Horario,Status\n";
             filtrados.forEach(a=>{csv+=`${a.nome},${a.email},${a.telefone},${a.data},${a.horario},${a.status}\n`;});
-            
             const blob=new Blob([csv],{type:"text/csv"});
             const link=document.createElement("a");
             link.href=URL.createObjectURL(blob);
             link.download=`agendamentos_${cliente}.csv`;
             link.click();
-            
             showToast("Exportado para CSV com sucesso", "success");
         });
-        
+
         exportPDFBtn.addEventListener("click", ()=>{
             const { jsPDF }=window.jspdf;
             const doc=new jsPDF();
             
             const filtrados = agendamentosCache.filter(a=>statusFilter.value?a.status===statusFilter.value:true);
-            
             if(filtrados.length === 0) {
                 showToast("Nenhum agendamento para exportar", "warning");
                 return;
             }
             
+            // Adiciona cabeçalho
             doc.setFontSize(18);
             doc.setTextColor(40);
             doc.text("Agendamentos", 105, 20, null, null, "center");
@@ -1204,17 +849,21 @@ logoutBtn.addEventListener('click', async () => {
             doc.setTextColor(100);
             doc.text(`Cliente: ${cliente}`, 105, 30, null, null, "center");
             
+            // Adiciona data
             const options = { day: '2-digit', month: '2-digit', year: 'numeric' };
             const today = new Date().toLocaleDateString('pt-BR', options);
             doc.text(`Gerado em: ${today}`, 105, 35, null, null, "center");
             
+            // Adiciona linha
             doc.setDrawColor(200);
             doc.line(20, 40, 190, 40);
             
+            // Configurações da tabela
             doc.setFontSize(10);
             doc.setTextColor(40);
-            
             let y = 50;
+            
+            // Cabeçalho da tabela
             doc.setFillColor(230);
             doc.rect(20, y, 170, 10, 'F');
             doc.text("Data", 25, y + 7);
@@ -1223,8 +872,9 @@ logoutBtn.addEventListener('click', async () => {
             doc.text("Status", 160, y + 7);
             y += 10;
             
+            // Conteúdo da tabela
             filtrados.forEach(a => {
-                if(y > 270) {
+                if(y > 270) { // Nova página se necessário
                     doc.addPage();
                     y = 20;
                 }
@@ -1233,6 +883,7 @@ logoutBtn.addEventListener('click', async () => {
                 doc.text(a.horario, 50, y + 7);
                 doc.text(a.nome, 80, y + 7);
                 
+                // Status com cor
                 if(a.status === 'confirmado') {
                     doc.setTextColor(0, 150, 0);
                 } else if(a.status === 'pendente') {
@@ -1242,19 +893,27 @@ logoutBtn.addEventListener('click', async () => {
                 }
                 doc.text(a.status, 160, y + 7);
                 doc.setTextColor(40);
+                
                 y += 10;
             });
             
             doc.save(`agendamentos_${cliente}.pdf`);
             showToast("Exportado para PDF com sucesso", "success");
         });
-        
+
+       
+
+            const agendamentoForm = document.getElementById('agendamentoForm');
+            const submitBtn = agendamentoForm.querySelector('button[type="submit"]');
+            const botoes = document.querySelectorAll(".agendamento-card button");
+
+          
         async function confirmarAgendamento(cliente, id) {
             if (!userToken) {
                 showToast("Faça login para confirmar um agendamento.", "warning");
                 return;
             }
-            
+
             try {
                 const res = await fetch(`/api/agendamentos/${cliente}/confirmar/${id}`, {
                     method: "POST",
@@ -1264,27 +923,29 @@ logoutBtn.addEventListener('click', async () => {
                     },
                     body: JSON.stringify({ status: "confirmado", confirmado: true })
                 });
-                
+
                 const data = await res.json();
-                
+
                 if (res.ok) {
                     showToast("Agendamento confirmado com sucesso!", "success");
                     listarAgendamentos();
                 } else {
                     showToast("Erro ao confirmar: " + (data.msg || data.message), "error");
                 }
+
             } catch (e) {
                 console.error(e);
                 showToast("Erro de conexão ao confirmar.", "error");
             }
         }
-        
+
+        // ---------------- CANCELAR AGENDAMENTO ----------------
         async function cancelarAgendamento(cliente, id) {
             if (!userToken) {
                 showToast("Faça login para cancelar um agendamento.", "warning");
                 return;
             }
-            
+
             try {
                 const res = await fetch(`/api/agendamentos/${cliente}/cancelar/${id}`, {
                     method: "POST",
@@ -1293,9 +954,8 @@ logoutBtn.addEventListener('click', async () => {
                         "Content-Type": "application/json"
                     }
                 });
-                
+
                 const data = await res.json();
-                
                 if (res.ok) {
                     showToast("Agendamento cancelado com sucesso!", "success");
                     listarAgendamentos();
@@ -1307,13 +967,13 @@ logoutBtn.addEventListener('click', async () => {
                 showToast("Erro de conexão ao cancelar.", "error");
             }
         }
-        
+
         async function reagendarAgendamento(cliente, id, novaData, novoHorario) {
             if (!userToken) {
                 showToast("Faça login para reagendar um agendamento.", "warning");
                 return;
             }
-            
+
             try {
                 const res = await fetch(`/api/agendamentos/${cliente}/reagendar/${id}`, {
                     method: "POST",
@@ -1321,277 +981,45 @@ logoutBtn.addEventListener('click', async () => {
                         "Authorization": `Bearer ${userToken}`,
                         "Content-Type": "application/json"
                     },
-                    body: JSON.stringify({ novaData, novoHorario, status: "pendente", confirmado: false })
+                    body: JSON.stringify({ 
+                        novaData, 
+                        novoHorario, 
+                        status: "pendente",
+                        confirmado: false
+                    })
                 });
-                
+
                 const data = await res.json();
-                
+
                 if (res.ok) {
                     showToast("Agendamento reagendado com sucesso!", "success");
                     listarAgendamentos();
                 } else {
+                    // Detecta conflito de horário (erro do índice único)
                     if (data.code === "23505") {
                         showToast("Já existe um agendamento nesse horário para este cliente.", "error");
                     } else {
                         showToast("Erro ao reagendar: " + (data.msg || data.message), "error");
                     }
                 }
+
             } catch (e) {
                 console.error(e);
                 showToast("Erro de conexão ao reagendar.", "error");
             }
         }
 
-
-
-        async function testarToken() {
-    const token = localStorage.getItem('userToken');
-    console.log('🔐 Token no localStorage:', token ? token.substring(0, 20) + '...' : 'NÃO EXISTE');
-    
-    if (!token) {
-        console.log('❌ Nenhum token encontrado');
-        return;
-    }
-    
-    try {
-       const response = await fetchWithAuth('/api/debug-token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token })
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const result = await response.json();
-        console.log('✅ Resposta do Debug Token:', result);
-        
-    } catch (error) {
-        console.error('❌ Erro no teste:', error);
-        console.log('🔧 Dica: Verifique se a rota /debug-token foi implementada no backend');
-    }
-}
-
-
-
-
-        
-        // ========== FUNÇÕES GLOBAIS PARA OS BOTÕES ==========
-        function adicionarEventListeners() {
-            // Configuração de Horários
-            const salvarConfigBtn = document.querySelector('button[onclick*="salvarConfiguracoes"]');
-            if (salvarConfigBtn) {
-                salvarConfigBtn.addEventListener('click', salvarConfiguracoes);
-            }
+  
             
-            const addHorarioBtn = document.querySelector('button[onclick*="adicionarHorario"]');
-            if (addHorarioBtn) {
-                addHorarioBtn.addEventListener('click', adicionarHorario);
-            }
-            
-            const addDataBtn = document.querySelector('button[onclick*="adicionarDataBloqueada"]');
-            if (addDataBtn) {
-                addDataBtn.addEventListener('click', adicionarDataBloqueada);
-            }
-        }
-        
-        // Funções para Configuração de Horários
-        window.toggleDiaSemana = function(dia) {
-            const btn = document.querySelector(`[data-dia="${dia}"]`);
-            btn.classList.toggle('active');
-        };
-        
-      // ---------------- SALVAR CONFIGURAÇÕES CORRIGIDA ----------------
-window.salvarConfiguracoes = async function() {
-    try {
-        // ✅ CORREÇÃO: Coletar dados CORRETAMENTE
-        const diasSemana = Array.from(document.querySelectorAll('.dias-semana-btn.active'))
-            .map(btn => parseInt(btn.dataset.dia));
-        
-        // ✅ CORREÇÃO: Coletar horários dos botões
-        const horarios = Array.from(document.querySelectorAll('#horariosConfig .horario-btn'))
-            .map(btn => btn.textContent.trim().split(' ')[0]);
-        
-        // ✅ CORREÇÃO: Se não tiver horários, usar padrão
-        if (horarios.length === 0) {
-            horarios.push('09:00', '10:00', '11:00', '14:00', '15:00', '16:00');
-            showToast('Usando horários padrão', 'info');
-        }
-        
-        // ✅ CORREÇÃO: Coletar datas bloqueadas
-        const datasBloqueadas = Array.from(document.querySelectorAll('#datasBloqueadasList .data-bloqueada-item'))
-            .map(item => item.dataset.data);
-        
-        console.log('💾 Salvando configurações:', {
-            dias_semana: diasSemana,
-            horarios_disponiveis: horarios,
-            datas_bloqueadas: datasBloqueadas
-        });
-
-        const config = {
-            dias_semana: diasSemana,
-            horarios_disponiveis: horarios,
-            intervalo_minutos: parseInt(document.getElementById('intervaloMinutos').value) || 60,
-            max_agendamentos_dia: parseInt(document.getElementById('maxAgendamentos').value) || 10,
-            datas_bloqueadas: datasBloqueadas
-        };
-        
-        // ✅✅✅ CORREÇÃO CRÍTICA: URL CORRETA E SINTAXE FIXA
-        const response = await fetchWithAuth(`/admin/config/${cliente}`, {  // 👈 REMOVI clienteId, USE cliente
-            method: 'PUT',
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(config)
-        });
-        
-        if (response.ok) {
-            const result = await response.json();
-            console.log('✅ Configurações salvas:', result);
-            showToast('Configurações salvas com sucesso!', 'success');
-            
-            // ✅ CORREÇÃO: Recarregar as configurações
-            await carregarConfiguracoes();
-        } else {
-            const error = await response.json();
-            throw new Error(error.msg || 'Erro ao salvar configurações');
-        }
-    } catch (error) {
-        console.error('❌ Erro ao salvar configurações:', error);
-        showToast('Erro ao salvar configurações: ' + error.message, 'error');
-    }
-};
-        
-        window.adicionarHorario = function() {
-            const novoHorario = document.getElementById('novoHorario').value;
-            if (!novoHorario) return;
-            
-            const horarioFormatado = novoHorario.substring(0, 5);
-            if (!configHorarios.horarios_disponiveis.includes(horarioFormatado)) {
-                configHorarios.horarios_disponiveis.push(horarioFormatado);
-                configHorarios.horarios_disponiveis.sort();
-                renderizarConfiguracoes();
-                document.getElementById('novoHorario').value = '';
-            }
-        };
-        
-        // ---------------- ADICIONAR DATA BLOQUEADA CORRIGIDA ----------------
-window.adicionarDataBloqueada = function() {
-    const dataInput = document.getElementById('dataBloqueada');
-    const data = dataInput.value;
-    
-    if (!data) {
-        showToast('Selecione uma data', 'warning');
-        return;
-    }
-
-    const datasBloqueadasList = document.getElementById('datasBloqueadasList');
-    
-    // ✅ CORREÇÃO: Verificar se data já existe
-    const dataJaExiste = Array.from(datasBloqueadasList.querySelectorAll('.data-bloqueada-item'))
-        .some(item => item.dataset.data === data);
-    
-    if (dataJaExiste) {
-        showToast('Data já está bloqueada', 'warning');
-        return;
-    }
-
-    // ✅ CORREÇÃO: Criar item corretamente
-    const div = document.createElement('div');
-    div.className = 'data-bloqueada-item flex justify-between items-center p-2 bg-red-900/20 rounded';
-    div.dataset.data = data; // ✅ IMPORTANTE: Salvar data no dataset
-    
-    div.innerHTML = `
-        <span>${formatData(data)}</span>
-        <button class="text-red-400 hover:text-red-300" onclick="removerDataBloqueada('${data}')">
-            <i data-feather="x" class="w-4 h-4"></i>
-        </button>
-    `;
-    
-    datasBloqueadasList.appendChild(div);
-    dataInput.value = '';
-    feather.replace();
-    
-    showToast('Data adicionada à lista de bloqueio', 'success');
-};
-        
-        window.adicionarHorarioEspecifico = function() {
-            const horario = document.getElementById('novoHorarioEspecifico').value;
-            if (!horario) return;
-            
-            const horarioFormatado = horario.substring(0, 5);
-            const horariosContainer = document.getElementById('horariosEspecificos');
-            
-            const div = document.createElement('div');
-            div.className = 'flex justify-between items-center p-1 bg-white/5 rounded';
-            div.innerHTML = `
-                <span>${horarioFormatado}</span>
-                <button class="text-red-400 hover:text-red-300" onclick="this.parentElement.remove()">
-                    <i data-feather="x" class="w-3 h-3"></i>
-                </button>
-            `;
-            horariosContainer.appendChild(div);
-            document.getElementById('novoHorarioEspecifico').value = '';
-            feather.replace();
-        };
-        
-        // Funções de Remoção
-        window.removerHorario = function(horario) {
-            configHorarios.horarios_disponiveis = configHorarios.horarios_disponiveis.filter(h => h !== horario);
-            renderizarConfiguracoes();
-        };
-        
-       // ---------------- REMOVER DATA BLOQUEADA CORRIGIDA ----------------
-window.removerDataBloqueada = function(data) {
-    const item = document.querySelector(`[data-data="${data}"]`);
-    if (item) {
-        item.remove();
-        showToast('Data removida da lista de bloqueio', 'success');
-    }
-};
-        
-        window.removerHorarioEspecifico = function(horario) {
-            const divs = document.querySelectorAll('#horariosEspecificos div');
-            divs.forEach(div => {
-                if (div.querySelector('span').textContent === horario) {
-                    div.remove();
-                }
-            });
-        };
-        
-        window.selecionarData = selecionarData;
-        
         // ---------------- INIT ----------------
         AOS.init({
             duration: 800,
             easing: 'ease-out-quart',
             once: true
         });
-        
         feather.replace();
         init();
     </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
