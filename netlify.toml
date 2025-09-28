@@ -9,12 +9,7 @@
   node_bundler = "esbuild"
 
 
-# Redirects para as functions específicas
-[[redirects]]
-  from = "/api/auth"
-  to = "/.netlify/functions/auth"
-  status = 200
-
+# Redirects específicos para seu frontend
 [[redirects]]
   from = "/api/agendamentos/:cliente"
   to = "/.netlify/functions/agendamentos/:cliente"
@@ -40,47 +35,14 @@
   to = "/.netlify/functions/agendamentos/:cliente/reagendar/:id"
   status = 200
 
-[[redirects]]
-  from = "/api/cleanup"
-  to = "/.netlify/functions/cleanup"
-  status = 200
-
-[[redirects]]
-  from = "/api/google-sheets"
-  to = "/.netlify/functions/google-sheets"
-  status = 200
-
-[[redirects]]
-  from = "/api/supabase"
-  to = "/.netlify/functions/supabase"
-  status = 200
-
-# ✅ ADICIONAR:
-[[redirects]]
-  from = "/api/config/:cliente"
-  to = "/.netlify/functions/config-cliente/:cliente"
-  status = 200
-  
-[[redirects]]
-  from = "/api/check-payment/:id"
-  to = "/.netlify/functions/pagamentos/:id"
-  status = 200
-
-# Redirect genérico para outras APIs
+# Redirect genérico
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
-  status = 200
-
-# Redirect para páginas de cliente
-[[redirects]]
-  from = "/cliente/:cliente"
-  to = "/cliente/:cliente.html"
   status = 200
 
 # Serve o frontend para todas as outras rotas
 [[redirects]]
   from = "/*"
   to = "/index.html"
-
   status = 200
