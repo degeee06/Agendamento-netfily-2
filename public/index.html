@@ -627,9 +627,13 @@ function init() {
         async function listarAgendamentos(){
             if(!userToken) return;
             try{
-                const res = await fetch(`/api/agendamentos/${cliente}`, {
-                    headers: { "Authorization": `Bearer ${userToken}` }
-                });
+                const { data: agendamentos, error } = await supabase
+    .from("agendamentos")
+    .select("*")
+    .eq("cliente", cliente)
+    .neq("status", "cancelado")
+    .order("data", { ascending: true })
+    .order("horario", { ascending: true });
                 const { agendamentos } = await res.json();
                 agendamentosCache = agendamentos;
                 meusAgendamentos.style.display = 'block';
@@ -1022,4 +1026,5 @@ function init() {
     </script>
 </body>
 </html>
+
 
