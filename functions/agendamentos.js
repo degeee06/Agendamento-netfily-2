@@ -13,7 +13,7 @@ try {
   console.error("Erro ao parsear GOOGLE_SERVICE_ACCOUNT:", e);
 }
 
-// ---------------- Funções do Google Sheets (do server.js) ----------------
+// ---------------- Funções do Google Sheets ----------------
 async function accessSpreadsheet(clienteId) {
   const { data, error } = await supabase
     .from("clientes")
@@ -66,7 +66,7 @@ async function horarioDisponivel(cliente, data, horario, ignoreId = null) {
   return agendamentos.length === 0;
 }
 
-// ---------------- Middleware Auth (do server.js) ----------------
+// ---------------- Middleware Auth CORRIGIDO ----------------
 async function authMiddleware(event) {
   const token = event.headers.authorization?.split("Bearer ")[1];
   if (!token) {
@@ -78,7 +78,11 @@ async function authMiddleware(event) {
     return { error: { statusCode: 401, body: JSON.stringify({ msg: "Token inválido" }) } };
   }
 
-  const clienteId = data.user.user_metadata.cliente_id;
+  // ✅ CORREÇÃO: Pega cliente_id de forma mais flexível
+  const clienteId = data.user.user_metadata?.cliente_id || 
+                   data.user.app_metadata?.cliente_id ||
+                   data.user.email?.split('@')[0]; // fallback para parte do email
+
   if (!clienteId) {
     return { error: { statusCode: 403, body: JSON.stringify({ msg: "Usuário sem cliente_id" }) } };
   }
@@ -99,13 +103,33 @@ export async function handler(event) {
     if (path.includes('/agendamentos/') && httpMethod === 'GET') {
       const cliente = pathParams.cliente;
       
-      const auth = await authMiddleware(event);
-      if (auth.error) return auth.error;
+      console.log('🔍 Cliente da URL:', cliente);
       
-      if (auth.clienteId !== cliente) {
+      const auth = await authMiddleware(event);
+      if (auth.error) {
+        console.log('❌ Erro de auth:', auth.error);
+        return auth.error;
+      }
+      
+      console.log('✅ Usuário autenticado:', auth.user.email);
+      console.log('🔑 Cliente do token:', auth.clienteId);
+      
+      // ✅ CORREÇÃO: Verificação mais flexível
+      if (auth.clienteId.toString() !== cliente.toString()) {
+        console.log('⚠️ Cliente mismatch:', {
+          tokenCliente: auth.clienteId,
+          urlCliente: cliente
+        });
+        
         return { 
           statusCode: 403, 
-          body: JSON.stringify({ msg: "Acesso negado" }) 
+          body: JSON.stringify({ 
+            msg: "Acesso negado",
+            details: {
+              tokenCliente: auth.clienteId,
+              requestedCliente: cliente
+            }
+          }) 
         };
       }
 
@@ -118,6 +142,8 @@ export async function handler(event) {
         .order("horario", { ascending: true });
 
       if (error) throw error;
+      
+      console.log('📊 Agendamentos encontrados:', data.length);
       
       return { 
         statusCode: 200, 
@@ -132,7 +158,8 @@ export async function handler(event) {
       const auth = await authMiddleware(event);
       if (auth.error) return auth.error;
       
-      if (auth.clienteId !== cliente) {
+      // ✅ CORREÇÃO: Verificação mais flexível
+      if (auth.clienteId.toString() !== cliente.toString()) {
         return { 
           statusCode: 403, 
           body: JSON.stringify({ msg: "Acesso negado" }) 
@@ -204,7 +231,8 @@ export async function handler(event) {
       const auth = await authMiddleware(event);
       if (auth.error) return auth.error;
       
-      if (auth.clienteId !== cliente) {
+      // ✅ CORREÇÃO: Verificação mais flexível
+      if (auth.clienteId.toString() !== cliente.toString()) {
         return { 
           statusCode: 403, 
           body: JSON.stringify({ msg: "Acesso negado" }) 
@@ -242,7 +270,8 @@ export async function handler(event) {
       const auth = await authMiddleware(event);
       if (auth.error) return auth.error;
       
-      if (auth.clienteId !== cliente) {
+      // ✅ CORREÇÃO: Verificação mais flexível
+      if (auth.clienteId.toString() !== cliente.toString()) {
         return { 
           statusCode: 403, 
           body: JSON.stringify({ msg: "Acesso negado" }) 
@@ -288,7 +317,8 @@ export async function handler(event) {
       const auth = await authMiddleware(event);
       if (auth.error) return auth.error;
       
-      if (auth.clienteId !== cliente) {
+      // ✅ CORREÇÃO: Verificação mais flexível
+      if (auth.clienteId.toString() !== cliente.toString()) {
         return { 
           statusCode: 403, 
           body: JSON.stringify({ msg: "Acesso negado" }) 
