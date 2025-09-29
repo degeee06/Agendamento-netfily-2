@@ -347,6 +347,9 @@
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im90eXhqY3h4cXdqb3RudXlydm1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0MzU5MTQsImV4cCI6MjA3MzAxMTkxNH0.O6pWtKMQvsIQlOt7G6nIcDMMKoTJU-G-qpZiiE6Q3Hk";
         const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+        // CORREÇÃO: URL correta da função
+        const FUNCTION_BASE_URL = "https://otyxjcxxqwjotnuyrvmc.supabase.co/functions/v1";
+
         let userToken = null;
         let agendamentosCache = [];
         let diaSelecionado = 1;
@@ -369,40 +372,41 @@
         const dataInput = document.getElementById("Data");
         const horarioInput = document.getElementById("Horario");
 
-        const pathParts = window.location.pathname.split('/');
-        const cliente = pathParts[1] || '';
+        // CORREÇÃO: Obter cliente da URL de forma mais robusta
+        const urlParams = new URLSearchParams(window.location.search);
+        let cliente = urlParams.get('cliente') || 'default';
 
-        function formatData(data){ const [y,m,d] = data.split("-"); return `${d}/${m}/${y}`; }
+        function formatData(data) { 
+            const [y,m,d] = data.split("-"); 
+            return `${d}/${m}/${y}`; 
+        }
 
+        // ---------------- INICIALIZAÇÃO ----------------
+        function init() {
+            // Configurar máscara de telefone
+            if (telefoneInput) {
+                telefoneMask = IMask(telefoneInput, {
+                    mask: '(00) 00000-0000'
+                });
+            }
+            
+            // Permitir selecionar a partir de hoje
+            const hoje = new Date();
+            if (dataInput) {
+                dataInput.min = hoje.toISOString().split('T')[0];
+            }
+            
+            // Verificar se já está logado
+            const token = localStorage.getItem('userToken');
+            if (token) {
+                userToken = token;
+                loginSection.style.display = 'none';
+                form.style.display = 'block';
+                logoutBtn.style.display = 'flex';
+                listarAgendamentos();
+            }
+        }
 
-// ---------------- INICIALIZAÇÃO ----------------
-function init() {
-    // Configurar máscara de telefone
-    if (telefoneInput) {
-        telefoneMask = IMask(telefoneInput, {
-            mask: '(00) 00000-0000'
-        });
-    }
-    
-    // Permitir selecionar a partir de hoje (incluindo hoje)
-    const hoje = new Date();
-    const ontem = new Date(hoje);
-    ontem.setDate(ontem.getDate() - 1); // Data de ontem
-    
-    if (dataInput) {
-        dataInput.min = ontem.toISOString().split('T')[0]; // Permite desde ontem
-    }
-    
-    // Verificar se já está logado
-    const token = localStorage.getItem('userToken');
-    if (token) {
-        userToken = token;
-        loginSection.style.display = 'none';
-        form.style.display = 'block';
-        logoutBtn.style.display = 'flex';
-        listarAgendamentos();
-    }
-}
         // ---------------- TOASTS ----------------
         let activeToasts = [];
         function showToast(message, type = "success") {
@@ -550,7 +554,6 @@ function init() {
             });
 
             feather.replace();
-
         }
 
         // ---------------- MODAL REAGENDAR ----------------
@@ -597,7 +600,9 @@ function init() {
             }
 
             // Preenche valores atuais e define data mínima como hoje
+            const hoje = new Date().toISOString().split('T')[0];
             modal.querySelector("#novaData").value = agendamento.data;
+            modal.querySelector("#novaData").min = hoje;
             modal.querySelector("#novoHorario").value = agendamento.horario;
 
             // Remove qualquer evento antigo para evitar duplicação
@@ -614,7 +619,6 @@ function init() {
                     return;
                 }
 
-
                 reagendarAgendamento(agendamento.cliente, agendamento.id, novaData, novoHorario);
                 modal.classList.add("hidden");
             });
@@ -627,11 +631,17 @@ function init() {
         async function listarAgendamentos(){
             if(!userToken) return;
             try{
-                const res = await fetch(`/api/agendamentos/${cliente}`, {
+                // CORREÇÃO: URL correta para listar agendamentos
+                const res = await fetch(`${FUNCTION_BASE_URL}/agendamentos/${cliente}`, {
                     headers: { "Authorization": `Bearer ${userToken}` }
                 });
-                const { agendamentos } = await res.json();
-                agendamentosCache = agendamentos;
+                
+                if (!res.ok) {
+                    throw new Error(`Erro ${res.status}: ${res.statusText}`);
+                }
+                
+                const data = await res.json();
+                agendamentosCache = data.agendamentos || [];
                 meusAgendamentos.style.display = 'block';
                 document.getElementById('filtersSection').style.display = 'block';
                 document.getElementById('diasTabs').style.display = 'flex';
@@ -639,7 +649,7 @@ function init() {
                 renderAgendamentos(); 
                
             } catch(e){
-                console.error(e);
+                console.error("Erro ao listar agendamentos:", e);
                 showToast("Erro ao listar agendamentos","error");
             }
         }
@@ -737,27 +747,29 @@ function init() {
                 return;
             }
 
-   
-
             // Mostrar loading
             agendarText.classList.add('hidden');
             agendarSpinner.classList.remove('hidden');
             form.querySelector('button[type="submit"]').disabled = true;
      
             try{
-                const response=await fetch(`/api/agendar/${cliente}`,{
-                    method:'POST',
-                    headers:{'Content-Type':'application/json',"Authorization":`Bearer ${userToken}`},
-                    body:JSON.stringify(dataToSend)
+                // CORREÇÃO: URL correta para agendar
+                const response = await fetch(`${FUNCTION_BASE_URL}/agendar/${cliente}`, {
+                    method: 'POST',
+                    headers: { 
+                        'Authorization': `Bearer ${userToken}`, 
+                        'Content-Type':'application/json' 
+                    },
+                    body: JSON.stringify(dataToSend)
                 });
-                
+
                 if(response.ok){ 
                     showToast("Agendado com sucesso!","success"); 
                     form.reset(); 
                     listarAgendamentos(); 
                 } else {
                     const errorData = await response.json();
-                    showToast(errorData.message || "Não foi possível agendar, horário ocupado!", "error");
+                    showToast(errorData.msg || errorData.error || "Não foi possível agendar!", "error");
                 }
             } catch(err){ 
                 console.error(err); 
@@ -806,7 +818,7 @@ function init() {
                     const semanas = parseInt(btn.dataset.semana);
                     const dataLimite = new Date();
                     dataLimite.setDate(dataLimite.getDate() + semanas * 7);
-                    diaSelecionado = semanas; // Usar o valor numérico diretamente para semanas
+                    diaSelecionado = semanas;
                     renderAgendamentos();
                 });
             });
@@ -874,7 +886,7 @@ function init() {
             
             // Conteúdo da tabela
             filtrados.forEach(a => {
-                if(y > 270) { // Nova página se necessário
+                if(y > 270) {
                     doc.addPage();
                     y = 20;
                 }
@@ -901,8 +913,7 @@ function init() {
             showToast("Exportado para PDF com sucesso", "success");
         });
 
-      
-
+        // ---------------- CONFIRMAR AGENDAMENTO ----------------
         async function confirmarAgendamento(cliente, id) {
             if (!userToken) {
                 showToast("Faça login para confirmar um agendamento.", "warning");
@@ -910,13 +921,13 @@ function init() {
             }
 
             try {
-                const res = await fetch(`/api/agendamentos/${cliente}/confirmar/${id}`, {
+                // CORREÇÃO: URL correta para confirmar
+                const res = await fetch(`${FUNCTION_BASE_URL}/agendamentos/${cliente}/confirmar/${id}`, {
                     method: "POST",
                     headers: {
                         "Authorization": `Bearer ${userToken}`,
                         "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({ status: "confirmado", confirmado: true })
+                    }
                 });
 
                 const data = await res.json();
@@ -925,7 +936,7 @@ function init() {
                     showToast("Agendamento confirmado com sucesso!", "success");
                     listarAgendamentos();
                 } else {
-                    showToast("Erro ao confirmar: " + (data.msg || data.message), "error");
+                    showToast("Erro ao confirmar: " + (data.msg || data.error), "error");
                 }
 
             } catch (e) {
@@ -942,7 +953,8 @@ function init() {
             }
 
             try {
-                const res = await fetch(`/api/agendamentos/${cliente}/cancelar/${id}`, {
+                // CORREÇÃO: URL correta para cancelar
+                const res = await fetch(`${FUNCTION_BASE_URL}/agendamentos/${cliente}/cancelar/${id}`, {
                     method: "POST",
                     headers: {
                         "Authorization": `Bearer ${userToken}`,
@@ -955,7 +967,7 @@ function init() {
                     showToast("Agendamento cancelado com sucesso!", "success");
                     listarAgendamentos();
                 } else {
-                    showToast("Erro ao cancelar: " + (data.msg || data.message), "error");
+                    showToast("Erro ao cancelar: " + (data.msg || data.error), "error");
                 }
             } catch (e) {
                 console.error(e);
@@ -963,6 +975,7 @@ function init() {
             }
         }
 
+        // ---------------- REAGENDAR AGENDAMENTO ----------------
         async function reagendarAgendamento(cliente, id, novaData, novoHorario) {
             if (!userToken) {
                 showToast("Faça login para reagendar um agendamento.", "warning");
@@ -970,7 +983,8 @@ function init() {
             }
 
             try {
-                const res = await fetch(`/api/agendamentos/${cliente}/reagendar/${id}`, {
+                // CORREÇÃO: URL correta para reagendar
+                const res = await fetch(`${FUNCTION_BASE_URL}/agendamentos/${cliente}/reagendar/${id}`, {
                     method: "POST",
                     headers: {
                         "Authorization": `Bearer ${userToken}`,
@@ -978,9 +992,7 @@ function init() {
                     },
                     body: JSON.stringify({ 
                         novaData, 
-                        novoHorario, 
-                        status: "pendente",
-                        confirmado: false
+                        novoHorario
                     })
                 });
 
@@ -990,12 +1002,7 @@ function init() {
                     showToast("Agendamento reagendado com sucesso!", "success");
                     listarAgendamentos();
                 } else {
-                    // Detecta conflito de horário (erro do índice único)
-                    if (data.code === "23505") {
-                        showToast("Já existe um agendamento nesse horário para este cliente.", "error");
-                    } else {
-                        showToast("Erro ao reagendar: " + (data.msg || data.message), "error");
-                    }
+                    showToast("Erro ao reagendar: " + (data.msg || data.error), "error");
                 }
 
             } catch (e) {
@@ -1004,7 +1011,6 @@ function init() {
             }
         }
 
-       
         // ---------------- INIT ----------------
         AOS.init({
             duration: 800,
@@ -1015,5 +1021,4 @@ function init() {
         init();
     </script>
 </body>
-
 </html>
